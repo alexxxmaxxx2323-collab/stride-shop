@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>STRIDE — кроссовки</title>
+  <!-- Официальный SDK Telegram WebApp: даёт тему и метод sendData() -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Шапка: название магазина + кнопка корзины со счётчиком -->
+  <header class="topbar">
+    <div class="brand">STRIDE</div>
+    <button class="cart-btn" id="cartBtn" aria-label="Корзина">
+      <span class="cart-ico">🛒</span>
+      <span class="cart-badge" id="cartBadge" hidden>0</span>
+    </button>
+  </header>
+
+  <main>
+    <p class="subtitle">Кроссовки и кеды · доставка по РФ</p>
+    <!-- Карточки товаров отрисует app.js -->
+    <section class="grid" id="catalog"></section>
+  </main>
+
+  <!-- Затемнение фона, когда открыта корзина -->
+  <div class="overlay" id="overlay" hidden></div>
+
+  <!-- Корзина — выезжает снизу -->
+  <section class="sheet" id="cartSheet" hidden>
+    <div class="sheet-head">
+      <h2>Корзина</h2>
+      <button class="close-btn" id="closeCart" aria-label="Закрыть">✕</button>
+    </div>
+
+    <div class="cart-items" id="cartItems"></div>
+    <div class="cart-empty" id="cartEmpty">Корзина пуста</div>
+
+    <!-- Форма оформления заказа -->
+    <form class="checkout" id="checkoutForm" hidden>
+      <input type="text" id="name" placeholder="Ваше имя" autocomplete="name" required>
+      <input type="tel" id="phone" placeholder="Телефон" autocomplete="tel" required>
+      <div class="total-row">
+        <span>Итого</span>
+        <span id="totalSum">0 ₽</span>
+      </div>
+      <button type="submit" class="pay-btn">Оформить заказ</button>
+    </form>
+  </section>
+
+  <!-- Всплывающее уведомление (для демо в браузере) -->
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

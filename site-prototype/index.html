@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STRIDE — каталог (прототип)</title>
+<style>
+  :root{
+    --bg:#ffffff; --panel:#f5f5f7; --line:#ececef;
+    --text:#16161a; --muted:#8a8a92; --accent:#16161a; --sale:#f5163f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg)}
+  a{color:inherit;text-decoration:none}
+
+  /* промо-полоса */
+  .promo{background:#16161a;color:#fff;text-align:center;font-size:12.5px;padding:7px;letter-spacing:.2px}
+
+  /* шапка */
+  header{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line)}
+  .head-in{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:24px;padding:16px 24px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:23px;letter-spacing:2px}
+  .logo svg{display:block}
+  .search{flex:1;display:flex;align-items:center;gap:10px;background:var(--panel);border-radius:12px;padding:11px 16px}
+  .search input{border:none;background:none;outline:none;font-size:14px;width:100%}
+  .icons{display:flex;align-items:center;gap:18px}
+  .icons .ic{cursor:pointer;color:var(--text);display:flex}
+  .icons .ic:hover{opacity:.6}
+  .icons .cart{position:relative}
+  .badge{position:absolute;top:-7px;right:-9px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;
+    min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+
+  /* навигация по категориям */
+  nav{max-width:1240px;margin:0 auto;display:flex;gap:26px;padding:0 24px 14px;font-size:14px;font-weight:600}
+  nav a{color:var(--muted);padding-bottom:10px}
+  nav a.active{color:var(--text);border-bottom:2px solid var(--text)}
+
+  /* контент */
+  .wrap{max-width:1240px;margin:0 auto;padding:24px;display:grid;grid-template-columns:240px 1fr;gap:28px}
+
+  /* заголовок + сортировка */
+  .toolbar{grid-column:1/-1;display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
+  .toolbar h1{font-size:26px}
+  .toolbar .count{color:var(--muted);font-size:14px;margin-left:10px;font-weight:400}
+  .sort{font-size:14px;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 14px;cursor:pointer}
+
+  /* фильтры */
+  .filters{align-self:start;position:sticky;top:150px}
+  .fgroup{border-bottom:1px solid var(--line);padding:16px 0}
+  .fgroup:first-child{padding-top:0}
+  .fgroup h3{font-size:14px;margin-bottom:12px}
+  .opt{display:flex;align-items:center;gap:9px;font-size:14px;color:#3a3a40;margin:9px 0;cursor:pointer}
+  .opt input{width:16px;height:16px;accent-color:var(--accent)}
+  .sizes{display:flex;flex-wrap:wrap;gap:8px}
+  .sizes span{border:1px solid var(--line);border-radius:8px;padding:7px 0;width:42px;text-align:center;font-size:13px;cursor:pointer}
+  .sizes span:hover{border-color:var(--text)}
+  .price-row{display:flex;gap:8px}
+  .price-row input{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13px}
+  .colors{display:flex;gap:10px;flex-wrap:wrap}
+  .colors i{width:24px;height:24px;border-radius:50%;border:1px solid var(--line);cursor:pointer}
+  .sale-toggle{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600;color:var(--sale);cursor:pointer}
+
+  /* сетка товаров */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .card{position:relative;display:flex;flex-direction:column;cursor:pointer}
+  .thumb{position:relative;background:var(--panel);border-radius:14px;overflow:hidden;aspect-ratio:1/1}
+  .thumb img{width:100%;height:100%;object-fit:cover;transition:transform .35s ease}
+  .card:hover .thumb img{transform:scale(1.05)}
+  .disc{position:absolute;top:10px;left:10px;background:var(--sale);color:#fff;font-size:15px;font-weight:800;
+    padding:6px 11px;border-radius:10px;box-shadow:0 4px 12px rgba(245,22,63,.4)}
+  .fav{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.9);
+    border:none;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .info{padding:12px 2px 0}
+  .brand{font-size:12px;color:var(--muted);margin-bottom:2px}
+  .name{font-size:14px;font-weight:600;margin-bottom:8px}
+  .prices{display:flex;align-items:center;gap:9px}
+  .now{font-size:17px;font-weight:800}
+  .now.red{color:var(--sale);font-size:20px}
+  .old{font-size:13px;color:var(--muted);text-decoration:line-through}
+
+  @media(max-width:900px){
+    .wrap{grid-template-columns:1fr}
+    .filters{display:none}
+    .grid{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+</head>
+<body>
+  <div class="promo">Бесплатная доставка от 5 000 ₽ · Возврат 30 дней · Оригинальная продукция</div>
+
+  <header>
+    <div class="head-in">
+      <a class="logo">
+        <svg width="30" height="30" viewBox="0 0 30 30">
+          <rect width="30" height="30" rx="8" fill="#16161a"/>
+          <path d="M8 9 L15 15 L8 21 M14 9 L21 15 L14 21" stroke="#fff" stroke-width="2.4"
+                fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>STRIDE</span>
+      </a>
+      <label class="search"><input placeholder="Поиск по кроссовкам, брендам, моделям"></label>
+      <div class="icons">
+        <span class="ic" title="Избранное">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M12 21s-7-4.6-9.3-9C1 8.5 2.7 5.5 6 5.5c2 0 3.2 1.2 4 2.3.8-1.1 2-2.3 4-2.3 3.3 0 5 3 3.3 6.5C19 16.4 12 21 12 21z" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="ic cart" title="Корзина">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M3 4h2l2.2 11.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.2L21 7H6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="9.5" cy="20" r="1.4" fill="currentColor"/>
+            <circle cx="18" cy="20" r="1.4" fill="currentColor"/>
+          </svg>
+          <span class="badge">2</span>
+        </span>
+      </div>
+    </div>
+    <nav>
+      <a class="active">Кроссовки</a>
+      <a>Кеды</a>
+      <a>Ботинки</a>
+      <a>Бренды</a>
+      <a style="color:var(--sale)">Распродажа</a>
+    </nav>
+  </header>
+
+  <div class="wrap">
+    <div class="toolbar">
+      <div><h1>Кроссовки<span class="count" id="cnt"></span></h1></div>
+      <div class="sort">Сортировка: Популярные ▾</div>
+    </div>
+
+    <!-- ФИЛЬТРЫ -->
+    <aside class="filters">
+      <div class="fgroup">
+        <div class="sale-toggle"><input type="checkbox" style="accent-color:var(--sale)"> Только со скидкой</div>
+      </div>
+      <div class="fgroup">
+        <h3>Бренд</h3>
+        <label class="opt"><input type="checkbox" checked> Nike</label>
+        <label class="opt"><input type="checkbox"> adidas</label>
+        <label class="opt"><input type="checkbox"> New Balance</label>
+        <label class="opt"><input type="checkbox"> Puma</label>
+        <label class="opt"><input type="checkbox"> ASICS</label>
+        <label class="opt"><input type="checkbox"> Reebok</label>
+      </div>
+      <div class="fgroup">
+        <h3>Размер</h3>
+        <div class="sizes">
+          <span>39</span><span>40</span><span>41</span><span>42</span><span>43</span><span>44</span><span>45</span>
+        </div>
+      </div>
+      <div class="fgroup">
+        <h3>Цена, ₽</h3>
+        <div class="price-row"><input placeholder="от 5 000"><input placeholder="до 12 500"></div>
+      </div>
+      <div class="fgroup">
+        <h3>Цвет</h3>
+        <div class="colors">
+          <i style="background:#16161a"></i><i style="background:#fff"></i><i style="background:#e11d48"></i>
+          <i style="background:#9ca3af"></i><i style="background:#84cc16"></i><i style="background:#2563eb"></i>
+        </div>
+      </div>
+    </aside>
+
+    <!-- СЕТКА -->
+    <section class="grid" id="grid"></section>
+  </div>
+
+<script>
+const IMG="https://images.unsplash.com/";
+const P=[
+ {b:"Nike",        n:"Aero Runner",    img:"photo-1542291026-7eec264c27ff", now:8990,  old:11990},
+ {b:"adidas",      n:"Street Classic", img:"photo-1460353581641-37baddab0fa2",now:6490},
+ {b:"New Balance", n:"Trail Boost",    img:"photo-1595950653106-6c9ebd614d3a",now:10290},
+ {b:"Puma",        n:"Retro '84",      img:"photo-1606107557195-0e29a4b5b4aa",now:9790,  old:12990},
+ {b:"Nike",        n:"Mono White",     img:"photo-1556906781-9a412961c28c", now:5990},
+ {b:"adidas",      n:"Night Runner",   img:"photo-1608231387042-66d1773070a5",now:11490},
+ {b:"New Balance", n:"Court Pro",      img:"photo-1539185441755-769473a23570",now:7290,  old:8990},
+ {b:"Puma",        n:"Cloud Knit",     img:"photo-1514989940723-e8e51635b782",now:8490},
+ {b:"Nike",        n:"Bold Red",       img:"photo-1525966222134-fcfa99b8ae77",now:9290},
+ {b:"Reebok",      n:"Urban Skate",    img:"photo-1549298916-b41d501d3772", now:6990,  old:8490},
+ {b:"ASICS",       n:"Gel Surge",      img:"photo-1600185365926-3a2ce3cdb9eb",now:12490},
+ {b:"Vans",        n:"Canvas Low",     img:"photo-1543508282-6319a3e2621f", now:5490,  old:6990},
+];
+const fmt=n=>n.toLocaleString("ru-RU")+" ₽";
+document.getElementById("cnt").textContent=" "+P.length+" моделей";
+document.getElementById("grid").innerHTML=P.map(p=>{
+  const hasDisc=!!p.old;
+  const pct=hasDisc?Math.round((1-p.now/p.old)*100):0;
+  return `<article class="card">
+    <div class="thumb">
+      ${hasDisc?`<span class="disc">−${pct}%</span>`:""}
+      <button class="fav">♡</button>
+      <img src="${IMG}${p.img}?w=600&q=80" alt="${p.n}" loading="lazy">
+    </div>
+    <div class="info">
+      <div class="brand">${p.b}</div>
+      <div class="name">${p.n}</div>
+      <div class="prices">
+        <span class="now ${hasDisc?"red":""}">${fmt(p.now)}</span>
+        ${hasDisc?`<span class="old">${fmt(p.old)}</span>`:""}
+      </div>
+    </div>
+  </article>`;
+}).join("");
+</script>
+</body>
+</html>
