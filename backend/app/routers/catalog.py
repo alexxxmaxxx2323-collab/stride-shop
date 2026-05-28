@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Brand, Category, Product
+from app.models import Brand, Category, Product, ProductVariant, VariantStock
 from app.schemas.catalog import BrandOut, CategoryOut, ProductListOut, ProductOut
 
 router = APIRouter(tags=["catalog"])
@@ -54,6 +54,17 @@ def list_products(
     if q:
         stmt = stmt.where(Product.name.ilike(f"%{q}%"))
 
+    # Фильтр по размеру: товар подходит если хотя бы у одного варианта
+    # есть остаток в этом размере (quantity > 0).
+    if size is not None:
+        stmt = stmt.where(
+            Product.id.in_(
+                select(ProductVariant.product_id)
+                .join(VariantStock, VariantStock.variant_id == ProductVariant.id)
+                .where(VariantStock.size == size, VariantStock.quantity > 0)
+            )
+        )
+
     if sort == "popular":
         stmt = stmt.order_by(Product.rating.desc(), Product.id)
     elif sort == "price_asc":
@@ -63,12 +74,7 @@ def list_products(
     elif sort == "new":
         stmt = stmt.order_by(Product.created_at.desc(), Product.id.desc())
 
-    # размеры лежат в JSON-массиве — фильтруем уже после выборки.
-    # Для боевых объёмов имеет смысл нормализовать sizes в отдельную таблицу.
     all_items = db.scalars(stmt).all()
-    if size is not None:
-        all_items = [p for p in all_items if size in (p.sizes or [])]
-
     total = len(all_items)
     pages = (total + page_size - 1) // page_size if total else 0
     start = (page - 1) * page_size
@@ -86,6 +92,14 @@ def list_products(
 @router.get("/products/{product_id}", response_model=ProductOut)
 def get_product(product_id: int, db: Session = Depends(get_db)):
     product = db.get(Product, product_id)
+    if product is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
+@router.get("/products/slug/{slug}", response_model=ProductOut)
+def get_product_by_slug(slug: str, db: Session = Depends(get_db)):
+    product = db.scalar(select(Product).where(Product.slug == slug))
     if product is None:
         raise HTTPException(status_code=404, detail="Product not found")
     return product

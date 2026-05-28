@@ -10,14 +10,16 @@ from app.routers import admin as admin_router
 from app.routers import auth as auth_router
 from app.routers import cart as cart_router
 from app.routers import catalog as catalog_router
+from app.routers import favorites as favorites_router
 from app.routers import orders as orders_router
 from app.routers import payments as payments_router
 
-app = FastAPI(title="Stride Shop API", version="0.1.0")
+app = FastAPI(title="Stride Shop API", version="0.2.0")
 app.include_router(auth_router.router)
 app.include_router(catalog_router.router)
 app.include_router(cart_router.router)
 app.include_router(orders_router.router)
+app.include_router(favorites_router.router)
 app.include_router(admin_router.router)
 app.include_router(addresses_router.router)
 app.include_router(payments_router.router)

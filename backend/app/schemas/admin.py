@@ -9,10 +9,7 @@ class ProductCreate(BaseModel):
     description: str = ""
     price: int = Field(ge=0)
     price_old: int | None = Field(default=None, ge=0)
-    image_url: str = Field(min_length=1, max_length=512)
     rating: float = Field(default=0.0, ge=0, le=5)
-    sizes: list[int] = Field(default_factory=list)
-    in_stock: bool = True
 
 
 class ProductUpdate(BaseModel):
@@ -23,7 +20,4 @@ class ProductUpdate(BaseModel):
     description: str | None = None
     price: int | None = Field(default=None, ge=0)
     price_old: int | None = Field(default=None, ge=0)
-    image_url: str | None = Field(default=None, min_length=1, max_length=512)
     rating: float | None = Field(default=None, ge=0, le=5)
-    sizes: list[int] | None = None
-    in_stock: bool | None = None

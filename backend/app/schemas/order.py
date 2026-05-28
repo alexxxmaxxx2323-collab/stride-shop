@@ -34,9 +34,10 @@ class OrderItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    product_id: int | None
+    variant_id: int | None
     product_name: str
     product_image: str
+    color_name: str
     size: int
     quantity: int
     unit_price: int

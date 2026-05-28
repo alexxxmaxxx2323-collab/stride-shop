@@ -39,14 +39,14 @@ def main() -> int:
     token = login("alice@test.com", "hunter22pass")
 
     # 1) без токена → 401
-    code, _ = request("POST", "/admin/products", {"brand_id": 1, "category_id": 1, "name": "x", "slug": "x", "price": 100, "image_url": "/x"})
+    code, _ = request("POST", "/admin/products", {"brand_id": 1, "category_id": 1, "name": "x", "slug": "x", "price": 100})
     assert code == 401
     print(f"no token: {code}")
 
     # 2) не-админ → 403 (Alice ещё не админ)
     code, body = request(
         "POST", "/admin/products",
-        {"brand_id": 1, "category_id": 1, "name": "Test", "slug": "test-slug", "price": 100, "image_url": "/x", "sizes": [42]},
+        {"brand_id": 1, "category_id": 1, "name": "Test", "slug": "test-slug", "price": 100},
         token=token,
     )
     assert code == 403, f"expected 403 for non-admin, got {code} {body}"
@@ -65,7 +65,7 @@ def main() -> int:
     # 4) теперь POST работает
     code, prod = request(
         "POST", "/admin/products",
-        {"brand_id": 1, "category_id": 1, "name": "Admin Test Sneaker", "slug": "admin-test-sneaker", "price": 9999, "image_url": "/static/products/nike-air-force-1.jpg", "sizes": [40, 41, 42], "rating": 4.2},
+        {"brand_id": 1, "category_id": 1, "name": "Admin Test Sneaker", "slug": "admin-test-sneaker", "price": 9999, "rating": 4.2},
         token=token,
     )
     assert code == 201, f"create failed: {code} {prod}"
@@ -75,7 +75,7 @@ def main() -> int:
     # 5) повторный slug → 409
     code, _ = request(
         "POST", "/admin/products",
-        {"brand_id": 1, "category_id": 1, "name": "x", "slug": "admin-test-sneaker", "price": 100, "image_url": "/x"},
+        {"brand_id": 1, "category_id": 1, "name": "x", "slug": "admin-test-sneaker", "price": 100},
         token=token,
     )
     assert code == 409
@@ -84,7 +84,7 @@ def main() -> int:
     # 6) несуществующий brand_id → 400
     code, _ = request(
         "POST", "/admin/products",
-        {"brand_id": 9999, "category_id": 1, "name": "x", "slug": "x-y-z", "price": 100, "image_url": "/x"},
+        {"brand_id": 9999, "category_id": 1, "name": "x", "slug": "x-y-z", "price": 100},
         token=token,
     )
     assert code == 400

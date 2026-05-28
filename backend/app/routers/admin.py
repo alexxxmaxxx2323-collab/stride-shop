@@ -31,6 +31,9 @@ def _check_fks(db: Session, brand_id: int | None, category_id: int | None) -> No
     dependencies=[Depends(require_admin)],
 )
 def create_product(data: ProductCreate, db: Session = Depends(get_db)) -> Product:
+    """Создаёт «голый» товар без вариантов.
+    Варианты, фото и остатки добавляются seed-скриптом или отдельным API
+    (вне scope текущей админки)."""
     if db.scalar(select(Product).where(Product.slug == data.slug)):
         raise HTTPException(status.HTTP_409_CONFLICT, "Slug already taken")
     _check_fks(db, data.brand_id, data.category_id)

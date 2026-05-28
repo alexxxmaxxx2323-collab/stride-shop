@@ -17,6 +17,31 @@ class CategoryOut(BaseModel):
     slug: str
 
 
+class VariantImageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    url: str
+    sort_order: int
+
+
+class VariantStockOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    size: int
+    quantity: int
+
+
+class VariantOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    color_name: str
+    color_hex: str
+    images: list[VariantImageOut]
+    stocks: list[VariantStockOut]
+    available_sizes: list[int]
+
+
 class ProductOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -27,12 +52,13 @@ class ProductOut(BaseModel):
     price: int
     price_old: int | None
     discount_pct: int | None
-    image_url: str
+    primary_image: str
     rating: float
-    sizes: list[int]
+    all_sizes: list[int]
     in_stock: bool
     brand: BrandOut
     category: CategoryOut
+    variants: list[VariantOut]
 
 
 class ProductListOut(BaseModel):

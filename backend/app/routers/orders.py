@@ -32,16 +32,21 @@ def create_order(
 
     total = 0
     for ci in cart.items:
-        subtotal = ci.product.price * ci.quantity
+        variant = ci.variant
+        product = variant.product
+        snapshot_image = variant.images[0].url if variant.images else product.primary_image
+        unit_price = product.price
+        subtotal = unit_price * ci.quantity
         total += subtotal
         order.items.append(
             OrderItem(
-                product_id=ci.product_id,
-                product_name=ci.product.name,
-                product_image=ci.product.image_url,
+                variant_id=variant.id,
+                product_name=product.name,
+                product_image=snapshot_image,
+                color_name=variant.color_name,
                 size=ci.size,
                 quantity=ci.quantity,
-                unit_price=ci.product.price,
+                unit_price=unit_price,
                 subtotal=subtotal,
             )
         )
