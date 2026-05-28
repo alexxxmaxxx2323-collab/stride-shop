@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Каталог · превью</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; margin: 0; background: #fafafa; color: #16161a; }
+  header { padding: 20px 32px; background: #fff; border-bottom: 1px solid #eee; }
+  h1 { margin: 0 0 12px; font-size: 22px; letter-spacing: -0.02em; }
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tab { padding: 8px 14px; border-radius: 999px; background: #f1f1f1; border: 0; cursor: pointer; font-size: 14px; }
+  .tab.active { background: #16161a; color: #fff; }
+  .sale-tab.active { background: #f5163f; }
+  main { padding: 24px 32px; }
+  .meta { margin-bottom: 16px; color: #888; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
+  .card { background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.05); transition: transform .15s; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.08); }
+  .thumb { position: relative; aspect-ratio: 1/1; overflow: hidden; background: #fff; padding: 12px; }
+  .thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .disc { position: absolute; top: 10px; left: 10px; background: #f5163f; color: #fff; font-weight: 700; font-size: 14px; padding: 4px 9px; border-radius: 6px; }
+  .body { padding: 12px 14px 16px; }
+  .brand { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: .04em; }
+  .name { font-weight: 600; font-size: 15px; margin: 3px 0 8px; min-height: 38px; }
+  .price-row { display: flex; align-items: baseline; gap: 8px; }
+  .price { font-weight: 700; font-size: 17px; }
+  .price.sale { color: #f5163f; }
+  .price-old { color: #aaa; text-decoration: line-through; font-size: 13px; }
+  .rating { color: #888; font-size: 12px; margin-top: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Каталог · превью с бэкенда</h1>
+  <div class="tabs" id="tabs"></div>
+</header>
+<main>
+  <div class="meta" id="meta"></div>
+  <div class="grid" id="grid"></div>
+</main>
+
+<script>
+const TABS = [
+  { key: "all",      label: "Все",         params: "" },
+  { key: "kr",       label: "Кроссовки",   params: "?category=krossovki" },
+  { key: "kedy",     label: "Кеды",        params: "?category=kedy" },
+  { key: "botinki",  label: "Ботинки",     params: "?category=botinki" },
+  { key: "sale",     label: "Распродажа",  params: "?only_discount=true", sale: true },
+];
+let active = "all";
+
+const fmt = n => n.toLocaleString("ru-RU") + " ₽";
+
+function renderTabs() {
+  document.getElementById("tabs").innerHTML = TABS.map(t =>
+    `<button class="tab ${t.sale ? "sale-tab" : ""} ${active === t.key ? "active" : ""}" data-key="${t.key}">${t.label}</button>`
+  ).join("");
+  document.querySelectorAll(".tab").forEach(b => b.onclick = () => { active = b.dataset.key; load(); renderTabs(); });
+}
+
+async function load() {
+  const tab = TABS.find(t => t.key === active);
+  const r = await fetch("/products" + tab.params + (tab.params ? "&" : "?") + "page_size=100");
+  const d = await r.json();
+  document.getElementById("meta").textContent = `Всего: ${d.total} моделей`;
+  document.getElementById("grid").innerHTML = d.items.map(p => `
+    <div class="card">
+      <div class="thumb">
+        ${p.discount_pct ? `<span class="disc">−${p.discount_pct}%</span>` : ""}
+        <img src="${p.image_url}" alt="${p.name}" loading="lazy">
+      </div>
+      <div class="body">
+        <div class="brand">${p.brand.name}</div>
+        <div class="name">${p.name}</div>
+        <div class="price-row">
+          <span class="price ${p.price_old ? "sale" : ""}">${fmt(p.price)}</span>
+          ${p.price_old ? `<span class="price-old">${fmt(p.price_old)}</span>` : ""}
+        </div>
+        <div class="rating">★ ${p.rating.toFixed(1)} · размеры ${p.sizes.join(", ")}</div>
+      </div>
+    </div>
+  `).join("");
+}
+
+renderTabs();
+load();
+</script>
+</body>
+</html>

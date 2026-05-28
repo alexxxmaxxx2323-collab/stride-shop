@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>STRIDE · админка</title>
+<style>
+  *,*::before,*::after { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; margin: 0; background: #f4f4f6; color: #16161a; }
+  header { background: #16161a; color: #fff; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+  header .logo { font-weight: 800; font-size: 20px; letter-spacing: -.02em; }
+  header a, header span { color: #fff; }
+  .btn { padding: 8px 14px; border-radius: 6px; border: 0; cursor: pointer; font-size: 14px; background: #f1f1f1; }
+  .btn.primary { background: #16161a; color: #fff; }
+  .btn.danger { background: #f5163f; color: #fff; }
+  .btn.ghost { background: transparent; color: #fff; border: 1px solid #fff; }
+
+  main { max-width: 1280px; margin: 0 auto; padding: 28px 24px; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  h1 { margin: 0; font-size: 24px; }
+
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+  th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 14px; vertical-align: middle; }
+  th { background: #fafafa; font-size: 12px; text-transform: uppercase; color: #666; letter-spacing: .04em; }
+  td img { width: 50px; height: 50px; object-fit: contain; background: #fafafa; border-radius: 4px; }
+  .actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50; display: none; align-items: center; justify-content: center; padding: 20px; }
+  .modal.show { display: flex; }
+  .modal-card { background: #fff; border-radius: 12px; padding: 24px; width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto; box-shadow: 0 12px 40px rgba(0,0,0,.2); }
+  .modal-card h2 { margin: 0 0 16px; font-size: 20px; }
+  .form-grid { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+  .form-grid .full { grid-column: 1 / -1; }
+  label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; }
+  input, select, textarea { width: 100%; padding: 9px 11px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; }
+  textarea { min-height: 60px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: 0; border-color: #16161a; }
+  .form-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .error { color: #f5163f; font-size: 13px; margin-top: 8px; }
+  .gate { max-width: 380px; margin: 80px auto; background: #fff; padding: 28px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,.05); }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #16161a; color: #fff; padding: 12px 20px; border-radius: 8px; z-index: 100; opacity: 0; transition: opacity .2s; }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #f5163f; }
+  .price-old { color: #aaa; text-decoration: line-through; font-size: 12px; }
+  .badge { padding: 2px 8px; border-radius: 99px; background: #eef; font-size: 11px; color: #336; }
+  .badge.out { background: #fee; color: #c00; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">STRIDE · админка</div>
+  <div>
+    <a href="/static/shop.html" class="btn ghost">← На сайт</a>
+    <span id="userLabel" style="margin-left:8px"></span>
+  </div>
+</header>
+
+<main id="content"></main>
+
+<!-- EDIT/CREATE MODAL -->
+<div class="modal" id="formModal">
+  <div class="modal-card">
+    <h2 id="formTitle">Новый товар</h2>
+    <div class="form-grid">
+      <div>
+        <label>Бренд</label>
+        <select id="f_brand_id"></select>
+      </div>
+      <div>
+        <label>Категория</label>
+        <select id="f_category_id"></select>
+      </div>
+      <div class="full"><label>Название</label><input id="f_name"></div>
+      <div class="full"><label>Slug (англ., через дефис)</label><input id="f_slug" placeholder="nike-air-force-1"></div>
+      <div class="full"><label>Описание</label><textarea id="f_description"></textarea></div>
+      <div><label>Цена, ₽</label><input id="f_price" type="number"></div>
+      <div><label>Старая цена, ₽ (опц.)</label><input id="f_price_old" type="number"></div>
+      <div class="full"><label>URL картинки</label><input id="f_image_url" placeholder="/static/products/...jpg"></div>
+      <div><label>Рейтинг (0-5)</label><input id="f_rating" type="number" step="0.1" min="0" max="5"></div>
+      <div><label>Размеры (через запятую)</label><input id="f_sizes" placeholder="39, 40, 41, 42, 43, 44, 45"></div>
+      <div class="full"><label><input type="checkbox" id="f_in_stock" style="width:auto;margin-right:6px">В наличии</label></div>
+    </div>
+    <div class="error" id="formError"></div>
+    <div class="form-foot">
+      <button class="btn" id="formCancel">Отмена</button>
+      <button class="btn primary" id="formSubmit">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const state = {
+  token: localStorage.getItem("stride_token") || null,
+  user: null,
+  brands: [],
+  categories: [],
+  products: [],
+  editingId: null,
+};
+
+const fmt = n => n.toLocaleString("ru-RU") + " ₽";
+
+async function api(path, opts = {}) {
+  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  if (state.token) headers["Authorization"] = "Bearer " + state.token;
+  const r = await fetch(path, { ...opts, headers });
+  const text = await r.text();
+  const body = text ? JSON.parse(text) : null;
+  if (!r.ok) throw { status: r.status, body };
+  return body;
+}
+
+function toast(msg, isError = false) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.toggle("error", isError);
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2500);
+}
+
+async function loadAll() {
+  const content = document.getElementById("content");
+  if (!state.token) {
+    content.innerHTML = `
+      <div class="gate">
+        <h2>Сначала залогинься как админ</h2>
+        <p style="color:#888;font-size:14px">Открой главную страницу, войди в свою учётку (должен быть is_admin=true), вернись сюда.</p>
+        <a class="btn primary" href="/static/shop.html">На сайт</a>
+      </div>`;
+    return;
+  }
+  try {
+    state.user = await api("/auth/me");
+  } catch {
+    state.token = null;
+    localStorage.removeItem("stride_token");
+    loadAll();
+    return;
+  }
+  if (!state.user.is_admin) {
+    content.innerHTML = `<div class="gate"><h2>Нет прав админа</h2><p style="color:#888">Учётка ${state.user.email} не админ. Запусти из бэкенда: <code>python make_admin.py ${state.user.email}</code></p><a class="btn primary" href="/static/shop.html">На сайт</a></div>`;
+    return;
+  }
+  document.getElementById("userLabel").textContent = state.user.email + " · admin";
+  state.brands = await api("/brands");
+  state.categories = await api("/categories");
+  const d = await api("/products?page_size=200");
+  state.products = d.items;
+  renderTable();
+}
+
+function renderTable() {
+  document.getElementById("content").innerHTML = `
+    <div class="toolbar">
+      <h1>Товары · ${state.products.length}</h1>
+      <button class="btn primary" id="createBtn">+ Добавить товар</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th></th><th>Бренд</th><th>Название</th><th>Категория</th><th>Цена</th>
+        <th>Размеры</th><th>Статус</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${state.products.map(p => `
+          <tr>
+            <td><img src="${p.image_url}"></td>
+            <td>${p.brand.name}</td>
+            <td><strong>${p.name}</strong><br><span style="color:#888;font-size:11px">${p.slug}</span></td>
+            <td>${p.category.name}</td>
+            <td>${fmt(p.price)}${p.price_old ? `<br><span class="price-old">${fmt(p.price_old)}</span>` : ""}</td>
+            <td style="font-size:12px">${(p.sizes || []).join(", ")}</td>
+            <td><span class="badge ${p.in_stock ? "" : "out"}">${p.in_stock ? "в наличии" : "нет"}</span></td>
+            <td><div class="actions">
+              <button class="btn" data-edit="${p.id}">✎</button>
+              <button class="btn danger" data-del="${p.id}">×</button>
+            </div></td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
+
+  document.getElementById("createBtn").onclick = () => openForm(null);
+  document.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => openForm(+b.dataset.edit));
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => deleteProduct(+b.dataset.del));
+}
+
+function openForm(productId) {
+  state.editingId = productId;
+  document.getElementById("formTitle").textContent = productId ? "Редактирование товара" : "Новый товар";
+  document.getElementById("formError").textContent = "";
+
+  document.getElementById("f_brand_id").innerHTML = state.brands.map(b => `<option value="${b.id}">${b.name}</option>`).join("");
+  document.getElementById("f_category_id").innerHTML = state.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+
+  if (productId) {
+    const p = state.products.find(x => x.id === productId);
+    document.getElementById("f_brand_id").value = p.brand.id;
+    document.getElementById("f_category_id").value = p.category.id;
+    document.getElementById("f_name").value = p.name;
+    document.getElementById("f_slug").value = p.slug;
+    document.getElementById("f_description").value = p.description;
+    document.getElementById("f_price").value = p.price;
+    document.getElementById("f_price_old").value = p.price_old ?? "";
+    document.getElementById("f_image_url").value = p.image_url;
+    document.getElementById("f_rating").value = p.rating;
+    document.getElementById("f_sizes").value = (p.sizes || []).join(", ");
+    document.getElementById("f_in_stock").checked = p.in_stock;
+  } else {
+    ["f_name", "f_slug", "f_description", "f_price", "f_price_old", "f_image_url"].forEach(id => document.getElementById(id).value = "");
+    document.getElementById("f_rating").value = "4.5";
+    document.getElementById("f_sizes").value = "39, 40, 41, 42, 43, 44, 45";
+    document.getElementById("f_in_stock").checked = true;
+  }
+  document.getElementById("formModal").classList.add("show");
+}
+
+function closeForm() {
+  document.getElementById("formModal").classList.remove("show");
+  state.editingId = null;
+}
+
+async function submitForm() {
+  const sizesRaw = document.getElementById("f_sizes").value.trim();
+  const sizes = sizesRaw ? sizesRaw.split(/[\s,]+/).map(s => parseInt(s, 10)).filter(n => !isNaN(n)) : [];
+  const priceOldRaw = document.getElementById("f_price_old").value.trim();
+  const data = {
+    brand_id: +document.getElementById("f_brand_id").value,
+    category_id: +document.getElementById("f_category_id").value,
+    name: document.getElementById("f_name").value.trim(),
+    slug: document.getElementById("f_slug").value.trim(),
+    description: document.getElementById("f_description").value.trim(),
+    price: +document.getElementById("f_price").value,
+    price_old: priceOldRaw ? +priceOldRaw : null,
+    image_url: document.getElementById("f_image_url").value.trim(),
+    rating: parseFloat(document.getElementById("f_rating").value),
+    sizes,
+    in_stock: document.getElementById("f_in_stock").checked,
+  };
+
+  const err = document.getElementById("formError");
+  err.textContent = "";
+  try {
+    if (state.editingId) {
+      await api(`/admin/products/${state.editingId}`, { method: "PATCH", body: JSON.stringify(data) });
+      toast("Сохранено");
+    } else {
+      await api("/admin/products", { method: "POST", body: JSON.stringify(data) });
+      toast("Создано");
+    }
+    closeForm();
+    await loadAll();
+  } catch (e) {
+    err.textContent = (e.body && e.body.detail) ? JSON.stringify(e.body.detail) : "Ошибка";
+  }
+}
+
+async function deleteProduct(id) {
+  const p = state.products.find(x => x.id === id);
+  if (!confirm(`Удалить «${p.name}»? Это безвозвратно.`)) return;
+  try {
+    await api(`/admin/products/${id}`, { method: "DELETE" });
+    toast("Удалено");
+    await loadAll();
+  } catch (e) {
+    toast((e.body && e.body.detail) || "Ошибка", true);
+  }
+}
+
+document.getElementById("formCancel").onclick = closeForm;
+document.getElementById("formSubmit").onclick = submitForm;
+document.getElementById("formModal").onclick = e => { if (e.target.id === "formModal") closeForm(); };
+
+loadAll();
+</script>
+</body>
+</html>
