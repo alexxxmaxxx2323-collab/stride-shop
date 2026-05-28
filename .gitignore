@@ -6,6 +6,10 @@ venv/
 env/
 .env
 
+# Локальная SQLite-БД магазина
+*.db
+*.db-journal
+
 # Node / Next.js (Фаза 2)
 node_modules/
 .next/
