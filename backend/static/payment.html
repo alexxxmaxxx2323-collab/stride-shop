@@ -90,7 +90,7 @@ function renderForm(order) {
       ${order.items.map(i => `
         <div class="summary-line">
           <img src="${i.product_image}" alt="">
-          <div class="info"><div>${i.product_name}</div><div class="sm">размер ${i.size} · ${fmt(i.unit_price)} × ${i.quantity}</div></div>
+          <div class="info"><div>${i.product_name}</div><div class="sm">${i.color_name ? i.color_name + " · " : ""}размер ${i.size} · ${fmt(i.unit_price)} × ${i.quantity}</div></div>
           <div class="pr">${fmt(i.subtotal)}</div>
         </div>
       `).join("")}

@@ -75,10 +75,12 @@
       <div class="full"><label>Описание</label><textarea id="f_description"></textarea></div>
       <div><label>Цена, ₽</label><input id="f_price" type="number"></div>
       <div><label>Старая цена, ₽ (опц.)</label><input id="f_price_old" type="number"></div>
-      <div class="full"><label>URL картинки</label><input id="f_image_url" placeholder="/static/products/...jpg"></div>
       <div><label>Рейтинг (0-5)</label><input id="f_rating" type="number" step="0.1" min="0" max="5"></div>
-      <div><label>Размеры (через запятую)</label><input id="f_sizes" placeholder="39, 40, 41, 42, 43, 44, 45"></div>
-      <div class="full"><label><input type="checkbox" id="f_in_stock" style="width:auto;margin-right:6px">В наличии</label></div>
+      <div class="full" style="font-size:12px;color:#888">
+        Цвета, фото и остатки управляются seed-скриптом
+        (<code>backend/seed.py</code>) — добавь фото в <code>static/products/&lt;slug&gt;/</code>
+        и запусти <code>python seed.py</code>.
+      </div>
     </div>
     <div class="error" id="formError"></div>
     <div class="form-foot">
@@ -160,17 +162,18 @@ function renderTable() {
     <table>
       <thead><tr>
         <th></th><th>Бренд</th><th>Название</th><th>Категория</th><th>Цена</th>
-        <th>Размеры</th><th>Статус</th><th></th>
+        <th>Цвета</th><th>Размеры</th><th>Статус</th><th></th>
       </tr></thead>
       <tbody>
         ${state.products.map(p => `
           <tr>
-            <td><img src="${p.image_url}"></td>
+            <td><img src="${p.primary_image}"></td>
             <td>${p.brand.name}</td>
             <td><strong>${p.name}</strong><br><span style="color:#888;font-size:11px">${p.slug}</span></td>
             <td>${p.category.name}</td>
             <td>${fmt(p.price)}${p.price_old ? `<br><span class="price-old">${fmt(p.price_old)}</span>` : ""}</td>
-            <td style="font-size:12px">${(p.sizes || []).join(", ")}</td>
+            <td style="font-size:12px">${p.variants.length}</td>
+            <td style="font-size:12px">${(p.all_sizes || []).join(", ")}</td>
             <td><span class="badge ${p.in_stock ? "" : "out"}">${p.in_stock ? "в наличии" : "нет"}</span></td>
             <td><div class="actions">
               <button class="btn" data-edit="${p.id}">✎</button>
@@ -204,15 +207,10 @@ function openForm(productId) {
     document.getElementById("f_description").value = p.description;
     document.getElementById("f_price").value = p.price;
     document.getElementById("f_price_old").value = p.price_old ?? "";
-    document.getElementById("f_image_url").value = p.image_url;
     document.getElementById("f_rating").value = p.rating;
-    document.getElementById("f_sizes").value = (p.sizes || []).join(", ");
-    document.getElementById("f_in_stock").checked = p.in_stock;
   } else {
-    ["f_name", "f_slug", "f_description", "f_price", "f_price_old", "f_image_url"].forEach(id => document.getElementById(id).value = "");
+    ["f_name", "f_slug", "f_description", "f_price", "f_price_old"].forEach(id => document.getElementById(id).value = "");
     document.getElementById("f_rating").value = "4.5";
-    document.getElementById("f_sizes").value = "39, 40, 41, 42, 43, 44, 45";
-    document.getElementById("f_in_stock").checked = true;
   }
   document.getElementById("formModal").classList.add("show");
 }
@@ -223,8 +221,6 @@ function closeForm() {
 }
 
 async function submitForm() {
-  const sizesRaw = document.getElementById("f_sizes").value.trim();
-  const sizes = sizesRaw ? sizesRaw.split(/[\s,]+/).map(s => parseInt(s, 10)).filter(n => !isNaN(n)) : [];
   const priceOldRaw = document.getElementById("f_price_old").value.trim();
   const data = {
     brand_id: +document.getElementById("f_brand_id").value,
@@ -234,10 +230,7 @@ async function submitForm() {
     description: document.getElementById("f_description").value.trim(),
     price: +document.getElementById("f_price").value,
     price_old: priceOldRaw ? +priceOldRaw : null,
-    image_url: document.getElementById("f_image_url").value.trim(),
     rating: parseFloat(document.getElementById("f_rating").value),
-    sizes,
-    in_stock: document.getElementById("f_in_stock").checked,
   };
 
   const err = document.getElementById("formError");
