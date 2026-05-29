@@ -1,116 +1,139 @@
-"""Скачивает дополнительные фото для нескольких флагманских товаров с Wikipedia.
+"""Скачивает мульти-ракурсные студийные фото товаров с CDN StockX (белый фон).
 
-Для каждого slug:
-- Создаёт папку static/products/<slug>/
-- Перемещает оригинальный одиночный файл в <slug>/01.jpg
-- Скачивает 2-3 дополнительные из Wikipedia как 02..04.jpg
+StockX хранит 360°-съёмку каждой модели по предсказуемому пути:
+    https://images.stockx.com/360/<Folder>/Images/<Folder>/Lv2/imgNN.jpg
+где NN = 01..36 — кадры полного оборота на чистом белом фоне.
+Мы берём из них несколько ключевых ракурсов (сбоку / 3-4 / спереди / с другой
+стороны / пятка) и кладём в static/products/<slug>/ как 01.jpg..05.jpg.
 
-Запуск: python _download_photos.py
-Идемпотентен — пропустит уже существующие папки.
+После успешной загрузки папки удаляем устаревший одиночный файл
+static/products/<slug>.<ext> (его перекрывает папка, см. seed.collect_images).
+
+Запуск:  python _download_photos.py
+Идемпотентен: перезаписывает папку заново при каждом запуске.
 """
 from __future__ import annotations
 
-import shutil
+import time
 import urllib.request
 from pathlib import Path
 
 PRODUCTS_DIR = Path(__file__).resolve().parent / "static" / "products"
-USER_AGENT = "stride-shop-demo/0.1 (educational portfolio project)"
+UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+)
 
-# slug -> список URL для скачивания дополнительных фото.
-# Размер 800px у Wikipedia thumbnail — нормально для каталога.
-EXTRA_PHOTOS: dict[str, list[str]] = {
-    "nike-air-force-1": [
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Nike_air_Force_1_white_on_white.jpg/800px-Nike_air_Force_1_white_on_white.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Dessus_et_dessous_de_l%27AF1.jpg/800px-Dessus_et_dessous_de_l%27AF1.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/Nike_AF1.JPG/800px-Nike_AF1.JPG",
-    ],
-    "adidas-stan-smith": [
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Stan_Smith_white_and_green.png/800px-Stan_Smith_white_and_green.png",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Adidas_Stan_Smith_%28made_in_France%29.jpg/800px-Adidas_Stan_Smith_%28made_in_France%29.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Adidas_Stan_Smith%2C_details.jpg/800px-Adidas_Stan_Smith%2C_details.jpg",
-    ],
-    "dr-martens-1460": [
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Dr_martens_boots.jpg/800px-Dr_martens_boots.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/Dr_Martens%2C_black%2C_old.jpg/800px-Dr_Martens%2C_black%2C_old.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/3/32/DM_stitching.jpg/800px-DM_stitching.jpg",
-    ],
+# Кадры 360°-оборота (из 36): сбоку, 3/4-спереди, спереди, с другой стороны, пятка.
+FRAMES = [1, 5, 9, 18, 27]
+
+# Наш slug товара -> папка модели в 360-CDN StockX (цвет подобран под наш вариант).
+SLUG_MAP: dict[str, str] = {
+    "nike-air-force-1":       "Nike-Air-Force-1-07-White",
+    "nike-air-max-90":        "Nike-Air-Max-90-Triple-White",
+    "nike-pegasus-38":        "Nike-Air-Zoom-Pegasus-38-Black-White",
+    "adidas-stan-smith":      "adidas-Stan-Smith-White-Green-OG",
+    "adidas-gazelle":         "adidas-Gazelle-Scarlet-Cloud-White",
+    "adidas-samba-og":        "adidas-Samba-Black-White-Gum",
+    "nb-574":                 "New-Balance-574-Grey",
+    "nb-990v6":               "New-Balance-990v6-Grey",
+    "puma-rs-x":              "Puma-RS-X-Toys-White",
+    "reebok-classic-leather": "Reebok-Classic-Leather-White",
+    "reebok-club-c-85":       "Reebok-Club-C-85-White-Green",
+    "vans-old-skool":         "Vans-Old-Skool-Black-White",
+    "vans-authentic":         "Vans-Authentic-Black-White",
+    "vans-sk8-hi":            "Vans-Sk8-Hi-Black-White",
+    "converse-chuck-taylor":  "Converse-Chuck-Taylor-All-Star-Hi-Black",
+    "converse-chuck-70":      "Converse-Chuck-Taylor-All-Star-70s-Hi-Parchment",
 }
 
+# Товары без 360 на StockX — оставляем как есть (1 чистое фото) и здесь не трогаем:
+# asics-gel-lyte-iii, puma-suede-classic, timberland-6-inch, clarks-wallabee,
+# dr-martens-1460, dr-martens-jadon, dr-martens-1461, palladium-pampa-hi.
 
-def _candidate_urls(url: str) -> list[str]:
-    """Wikipedia ограничивает размеры thumbnails. Перебираем варианты:
-    исходный размер из URL → разрешённые 640/480/1024 → оригинал без /thumb/."""
-    out = [url]
-    if "/thumb/" in url:
-        # Подменяем размер
-        for size in ("1024", "640", "480", "330", "250"):
-            if f"/{size}px-" in url:
-                continue
-            # заменяем последний /SIZEpx-...
-            import re
-            replaced = re.sub(r"/(\d+)px-", f"/{size}px-", url)
-            if replaced != url:
-                out.append(replaced)
-        # оригинал
-        original = url.replace("/thumb/", "/").rsplit("/", 1)[0]
-        out.append(original)
-    return out
+# Папки, где раньше лежали любительские доп.фото с Wikipedia — оставить только 01.jpg.
+STRIP_EXTRAS = ["dr-martens-1460"]
 
 
-def download(url: str, dest: Path) -> bool:
-    for candidate in _candidate_urls(url):
-        req = urllib.request.Request(candidate, headers={"User-Agent": USER_AGENT})
-        try:
-            with urllib.request.urlopen(req, timeout=15) as r:
-                dest.write_bytes(r.read())
-            return True
-        except Exception:
-            continue
-    print(f"  FAIL {url} (все варианты)")
-    return False
+def frame_url(folder: str, n: int) -> str:
+    return f"https://images.stockx.com/360/{folder}/Images/{folder}/Lv2/img{n:02d}.jpg"
 
 
-def setup_slug(slug: str, urls: list[str]) -> None:
+def fetch(url: str) -> bytes | None:
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.read()
+    except Exception as e:  # noqa: BLE001
+        print(f"    FAIL {url} ({e})")
+        return None
+
+
+def clear_images(folder: Path) -> None:
+    for p in folder.iterdir():
+        if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
+            p.unlink()
+
+
+def download_set(slug: str, folder_name: str) -> bool:
     folder = PRODUCTS_DIR / slug
-    if folder.exists():
-        print(f"[skip] {slug} — folder already exists")
-        return
+    # 1. Сначала качаем всё во временную память — папку трогаем только при полном успехе.
+    blobs: list[bytes] = []
+    for n in FRAMES:
+        data = fetch(frame_url(folder_name, n))
+        if data is None or len(data) < 2000:  # 404 отдаёт крошечную заглушку
+            print(f"  [{slug}] кадр img{n:02d} не получен — пропускаю товар целиком")
+            return False
+        blobs.append(data)
+        time.sleep(0.15)
 
-    # 1. Найти исходный файл (slug.jpg или slug.png)
-    src = None
+    # 2. Все кадры есть — перезаписываем папку.
+    folder.mkdir(parents=True, exist_ok=True)
+    clear_images(folder)
+    for i, data in enumerate(blobs, start=1):
+        (folder / f"{i:02d}.jpg").write_bytes(data)
+    print(f"  [{slug}] OK — {len(blobs)} фото <- {folder_name}")
+
+    # 3. Удаляем устаревший одиночный файл (его перекрывает папка).
     for ext in (".jpg", ".jpeg", ".png", ".webp"):
-        candidate = PRODUCTS_DIR / f"{slug}{ext}"
-        if candidate.exists():
-            src = candidate
-            break
-    if src is None:
-        print(f"[skip] {slug} — нет исходного файла")
+        single = PRODUCTS_DIR / f"{slug}{ext}"
+        if single.is_file():
+            single.unlink()
+            print(f"  [{slug}] удалён лишний одиночный файл {single.name}")
+    return True
+
+
+def strip_extras(slug: str) -> None:
+    """Оставить в папке только 01.* (убрать старые любительские доп.фото)."""
+    folder = PRODUCTS_DIR / slug
+    if not folder.is_dir():
         return
-
-    # 2. Создать папку и положить исходный как 01.<ext>
-    folder.mkdir(parents=True)
-    dest_01 = folder / f"01{src.suffix}"
-    shutil.copy2(src, dest_01)
-    print(f"[{slug}] 01 <- {src.name}")
-
-    # 3. Скачать дополнительные
-    for i, url in enumerate(urls, start=2):
-        ext = ".jpg"
-        for e in (".jpg", ".jpeg", ".png", ".webp"):
-            if url.lower().endswith(e):
-                ext = e
-                break
-        dest = folder / f"{i:02d}{ext}"
-        if download(url, dest):
-            print(f"[{slug}] {i:02d} <- {url.split('/')[-1][:60]}")
+    removed = 0
+    for p in sorted(folder.iterdir()):
+        if p.is_file() and not p.stem.startswith("01"):
+            p.unlink()
+            removed += 1
+    if removed:
+        print(f"  [{slug}] убрано лишних фото: {removed} (оставлено только 01)")
 
 
 def main() -> None:
     if not PRODUCTS_DIR.exists():
         raise RuntimeError(f"Нет {PRODUCTS_DIR}")
-    for slug, urls in EXTRA_PHOTOS.items():
-        setup_slug(slug, urls)
+
+    print("=== StockX 360 ракурсы ===")
+    ok, fail = 0, 0
+    for slug, folder_name in SLUG_MAP.items():
+        if download_set(slug, folder_name):
+            ok += 1
+        else:
+            fail += 1
+
+    print("\n=== Чистка устаревших доп.фото ===")
+    for slug in STRIP_EXTRAS:
+        strip_extras(slug)
+
+    print(f"\nГотово: успешно {ok}, неудачно {fail}, всего в карте {len(SLUG_MAP)}.")
 
 
 if __name__ == "__main__":
