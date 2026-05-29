@@ -35,8 +35,25 @@ def login(email: str, password: str) -> str:
     return body["access_token"]
 
 
+def set_admin(email: str, value: bool) -> None:
+    """Выставить флаг is_admin в БД напрямую. Нужно, чтобы тест сам приводил
+    систему в известное состояние и оставался идемпотентным."""
+    from app.db import SessionLocal
+    from app.models import User
+    from sqlalchemy import select
+
+    with SessionLocal() as db:
+        u = db.scalar(select(User).where(User.email == email))
+        u.is_admin = value
+        db.commit()
+
+
 def main() -> int:
     token = login("alice@test.com", "hunter22pass")
+
+    # Сброс в известное стартовое состояние: Alice — не админ.
+    # Без этого второй прогон падал бы, т.к. шаг 3 повышает её и не понижает.
+    set_admin("alice@test.com", False)
 
     # 1) без токена → 401
     code, _ = request("POST", "/admin/products", {"brand_id": 1, "category_id": 1, "name": "x", "slug": "x", "price": 100})
@@ -52,14 +69,8 @@ def main() -> int:
     assert code == 403, f"expected 403 for non-admin, got {code} {body}"
     print(f"non-admin user: {code}")
 
-    # 3) делаем Alice админом и логинимся снова (старый JWT всё ещё валиден — is_admin читаем из БД при каждом запросе)
-    from app.db import SessionLocal
-    from app.models import User
-    from sqlalchemy import select
-    with SessionLocal() as db:
-        u = db.scalar(select(User).where(User.email == "alice@test.com"))
-        u.is_admin = True
-        db.commit()
+    # 3) делаем Alice админом (старый JWT всё ещё валиден — is_admin читаем из БД при каждом запросе)
+    set_admin("alice@test.com", True)
     print("alice promoted to admin")
 
     # 4) теперь POST работает
