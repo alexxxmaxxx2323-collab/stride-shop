@@ -12,6 +12,9 @@ class Brand(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     slug: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    description: Mapped[str] = mapped_column(
+        Text, default="", server_default="", nullable=False
+    )
 
 
 class Category(Base):
@@ -34,6 +37,12 @@ class Product(Base):
     price: Mapped[int] = mapped_column(Integer, nullable=False)
     price_old: Mapped[int | None] = mapped_column(Integer, nullable=True)
     rating: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    # Состав / характеристики (блок «Состав» в карточке)
+    upper: Mapped[str] = mapped_column(String(128), default="", server_default="", nullable=False)
+    lining: Mapped[str] = mapped_column(String(128), default="", server_default="", nullable=False)
+    sole: Mapped[str] = mapped_column(String(128), default="", server_default="", nullable=False)
+    season: Mapped[str] = mapped_column(String(64), default="", server_default="", nullable=False)
+    country: Mapped[str] = mapped_column(String(64), default="", server_default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -46,6 +55,16 @@ class Product(Base):
         order_by="ProductVariant.sort_order",
         lazy="selectin",
     )
+    reviews: Mapped[list["Review"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan",
+        order_by="Review.created_at.desc()",
+        lazy="selectin",
+    )
+
+    @property
+    def review_count(self) -> int:
+        return len(self.reviews)
 
     @property
     def discount_pct(self) -> int | None:
@@ -133,3 +152,20 @@ class VariantStock(Base):
     quantity: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     variant: Mapped["ProductVariant"] = relationship(back_populates="stocks")
+
+
+class Review(Base):
+    __tablename__ = "reviews"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    author: Mapped[str] = mapped_column(String(64), nullable=False)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1..5
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    product: Mapped["Product"] = relationship(back_populates="reviews")

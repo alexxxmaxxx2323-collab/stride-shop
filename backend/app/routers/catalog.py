@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Brand, Category, Product, ProductVariant, VariantStock
-from app.schemas.catalog import BrandOut, CategoryOut, ProductListOut, ProductOut
+from app.schemas.catalog import (
+    BrandOut,
+    CategoryOut,
+    ProductDetailOut,
+    ProductListOut,
+    ProductOut,
+)
 
 router = APIRouter(tags=["catalog"])
 
@@ -93,7 +99,7 @@ def list_products(
     )
 
 
-@router.get("/products/{product_id}", response_model=ProductOut)
+@router.get("/products/{product_id}", response_model=ProductDetailOut)
 def get_product(product_id: int, db: Session = Depends(get_db)):
     product = db.get(Product, product_id)
     if product is None:
@@ -101,7 +107,7 @@ def get_product(product_id: int, db: Session = Depends(get_db)):
     return product
 
 
-@router.get("/products/slug/{slug}", response_model=ProductOut)
+@router.get("/products/slug/{slug}", response_model=ProductDetailOut)
 def get_product_by_slug(slug: str, db: Session = Depends(get_db)):
     product = db.scalar(select(Product).where(Product.slug == slug))
     if product is None:

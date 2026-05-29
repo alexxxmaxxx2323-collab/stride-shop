@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -7,6 +9,7 @@ class BrandOut(BaseModel):
     id: int
     name: str
     slug: str
+    description: str = ""
 
 
 class CategoryOut(BaseModel):
@@ -59,6 +62,27 @@ class ProductOut(BaseModel):
     brand: BrandOut
     category: CategoryOut
     variants: list[VariantOut]
+
+
+class ReviewOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    author: str
+    rating: int
+    text: str
+    created_at: datetime
+
+
+class ProductDetailOut(ProductOut):
+    """Карточка товара: всё из списка + состав, описание бренда и отзывы."""
+
+    upper: str = ""
+    lining: str = ""
+    sole: str = ""
+    season: str = ""
+    country: str = ""
+    review_count: int = 0
+    reviews: list[ReviewOut] = []
 
 
 class ProductListOut(BaseModel):

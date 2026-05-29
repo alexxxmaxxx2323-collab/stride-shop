@@ -130,7 +130,25 @@
   .pm-qty span { min-width: 24px; text-align: center; font-weight: 600; font-size: 15px; }
   .pm-add { background: #16161a; color: #fff; border: 0; padding: 14px 18px; border-radius: 10px; font-size: 15px; font-weight: 600; }
   .pm-add:disabled { background: #ccc; cursor: not-allowed; }
-  .pm-desc { color: #555; font-size: 14px; line-height: 1.5; padding-top: 12px; border-top: 1px solid #eee; }
+  /* accordion: О товаре / Состав / О бренде / Отзывы */
+  .pm-acc { border-top: 1px solid #eee; margin-top: 4px; }
+  .pm-acc-item { border-bottom: 1px solid #eee; }
+  .pm-acc-head { width: 100%; background: none; border: 0; padding: 14px 2px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-size: 14px; font-weight: 600; color: #16161a; text-align: left; }
+  .pm-acc-head .pm-acc-meta { color: #888; font-weight: 400; font-size: 13px; margin-left: auto; margin-right: 10px; }
+  .pm-acc-chev { transition: transform .2s; color: #999; font-size: 12px; }
+  .pm-acc-item.open .pm-acc-chev { transform: rotate(180deg); }
+  .pm-acc-body { padding: 0 2px 16px; color: #555; font-size: 14px; line-height: 1.55; }
+  .pm-specs { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; }
+  .pm-specs dt { color: #999; }
+  .pm-specs dd { margin: 0; color: #333; }
+  .pm-rev { padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+  .pm-rev:last-child { border-bottom: 0; }
+  .pm-rev-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .pm-rev-author { font-weight: 600; color: #16161a; font-size: 13px; }
+  .pm-rev-stars { color: #f5a623; font-size: 12px; letter-spacing: 1px; }
+  .pm-rev-date { color: #aaa; font-size: 12px; margin-left: auto; }
+  .pm-rev-text { font-size: 13px; color: #555; line-height: 1.5; }
+  .pm-acc-empty { color: #aaa; font-size: 13px; }
 
   /* ---- LOGIN MODAL ---- */
   .modal { position: fixed; inset: 0; z-index: 70; display: none; align-items: center; justify-content: center; padding: 20px; }
@@ -336,9 +354,12 @@ const state = {
   modalImageIdx: 0,
   modalSize: null,
   modalQty: 1,
+  modalAcc: "about",
 };
 
 const fmt = n => n.toLocaleString("ru-RU") + " ₽";
+const fmtDate = s => { try { return new Date(s).toLocaleDateString("ru-RU"); } catch { return ""; } };
+const stars = n => "★".repeat(n) + "☆".repeat(5 - n);
 
 const HEART_SVG = '<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
 
@@ -479,17 +500,26 @@ function renderCard(p) {
 }
 
 // -------------------- PRODUCT MODAL --------------------
-function openProductModal(productId) {
+async function openProductModal(productId) {
   const p = state.products.find(x => x.id === productId);
   if (!p) return;
-  state.modalProduct = p;
+  state.modalProduct = { ...p };  // копия, чтобы не мутировать товар в списке
   state.modalVariantIdx = 0;
   state.modalImageIdx = 0;
   state.modalSize = null;
   state.modalQty = 1;
+  state.modalAcc = "about";
   document.getElementById("productModal").classList.add("show");
   document.body.style.overflow = "hidden";
   renderProductModal();
+  // дотягиваем детальные данные (состав, отзывы) отдельным запросом
+  try {
+    const detail = await api(`/products/${productId}`);
+    if (state.modalProduct && state.modalProduct.id === productId) {
+      Object.assign(state.modalProduct, detail);
+      renderProductModal();
+    }
+  } catch (e) { /* нет детали — остаёмся на данных из списка */ }
 }
 
 function closeProductModal() {
@@ -579,10 +609,74 @@ function renderProductModal() {
           ${state.modalSize ? `В корзину · ${fmt(p.price * state.modalQty)}` : "Выберите размер"}
         </button>
 
-        <div class="pm-desc">${p.description}</div>
+        ${renderAccordion(p)}
       </div>
     </div>
   `;
+}
+
+function accItem(key, title, bodyHtml, meta = "") {
+  const open = state.modalAcc === key;
+  return `
+    <div class="pm-acc-item ${open ? "open" : ""}">
+      <button class="pm-acc-head" data-acc="${key}">
+        <span>${title}</span>
+        ${meta ? `<span class="pm-acc-meta">${meta}</span>` : ""}
+        <span class="pm-acc-chev">▾</span>
+      </button>
+      ${open ? `<div class="pm-acc-body">${bodyHtml}</div>` : ""}
+    </div>`;
+}
+
+function renderAccordion(p) {
+  // О товаре
+  const about = p.description ? p.description : "<span class='pm-acc-empty'>Нет описания</span>";
+
+  // Состав (детальные поля приходят отдельным запросом)
+  let specs;
+  if (p.upper === undefined) {
+    specs = "<span class='pm-acc-empty'>Загрузка…</span>";
+  } else {
+    const rows = [
+      ["Верх", p.upper], ["Подкладка", p.lining], ["Подошва", p.sole],
+      ["Сезон", p.season], ["Страна", p.country],
+    ].filter(([, v]) => v);
+    specs = rows.length
+      ? `<dl class="pm-specs">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`
+      : "<span class='pm-acc-empty'>Нет данных</span>";
+  }
+
+  // О бренде
+  const brandDesc = (p.brand && p.brand.description)
+    ? p.brand.description
+    : "<span class='pm-acc-empty'>Нет описания</span>";
+
+  // Отзывы
+  let reviewsBody, reviewsMeta = "";
+  if (p.reviews === undefined) {
+    reviewsBody = "<span class='pm-acc-empty'>Загрузка…</span>";
+  } else if (p.reviews.length === 0) {
+    reviewsBody = "<span class='pm-acc-empty'>Пока нет отзывов</span>";
+  } else {
+    reviewsMeta = `${p.reviews.length} · ★ ${p.rating.toFixed(1)}`;
+    reviewsBody = p.reviews.map(r => `
+      <div class="pm-rev">
+        <div class="pm-rev-top">
+          <span class="pm-rev-author">${r.author}</span>
+          <span class="pm-rev-stars">${stars(r.rating)}</span>
+          <span class="pm-rev-date">${fmtDate(r.created_at)}</span>
+        </div>
+        <div class="pm-rev-text">${r.text}</div>
+      </div>`).join("");
+  }
+
+  return `
+    <div class="pm-acc">
+      ${accItem("about", "О товаре", about)}
+      ${accItem("specs", "Состав", specs)}
+      ${accItem("brand", "О бренде", brandDesc)}
+      ${accItem("reviews", "Отзывы", reviewsBody, reviewsMeta)}
+    </div>`;
 }
 
 async function addModalToCart() {
@@ -955,6 +1049,14 @@ document.getElementById("productModal").addEventListener("click", e => {
   }
   const p = state.modalProduct;
   if (!p) return;
+
+  const acc = e.target.closest("[data-acc]");
+  if (acc) {
+    const k = acc.dataset.acc;
+    state.modalAcc = state.modalAcc === k ? null : k;  // повторный клик — свернуть
+    renderProductModal(); return;
+  }
+
   const v = currentVariant();
   const images = v.images.length ? v.images : [{ url: p.primary_image }];
 

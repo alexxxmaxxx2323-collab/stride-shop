@@ -3,6 +3,7 @@ from app.models.catalog import (
     Category,
     Product,
     ProductVariant,
+    Review,
     VariantImage,
     VariantStock,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "OrderItem",
     "Product",
     "ProductVariant",
+    "Review",
     "User",
     "VariantImage",
     "VariantStock",
