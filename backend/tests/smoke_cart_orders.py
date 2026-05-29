@@ -85,7 +85,7 @@ def main() -> int:
     # 10) создание заказа из корзины
     code, order = request(
         "POST", "/orders",
-        {"delivery_name": "Alice", "delivery_phone": "+79991234567", "delivery_address": "Москва, ул. Пушкина 1"},
+        {"delivery_name": "Alice", "delivery_phone": "+79991234567", "delivery_address": "Москва, ул. Тверская, д. 7"},
         token=token,
     )
     assert code == 201, f"order create: {code} {order}"
@@ -101,7 +101,7 @@ def main() -> int:
     # 12) пустую корзину нельзя оформить
     code, body = request(
         "POST", "/orders",
-        {"delivery_name": "Alice", "delivery_phone": "+79991234567", "delivery_address": "Москва, ул. Пушкина, д. 1"},
+        {"delivery_name": "Alice", "delivery_phone": "+79991234567", "delivery_address": "Москва, ул. Тверская, д. 7"},
         token=token,
     )
     assert code == 400

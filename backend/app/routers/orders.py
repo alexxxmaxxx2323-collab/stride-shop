@@ -6,6 +6,7 @@ from app.auth import get_current_user
 from app.db import get_db
 from app.models import Cart, Order, OrderItem, User
 from app.schemas.order import OrderCreate, OrderCreatedOut, OrderOut
+from app.services.geocode import GeocodeUnavailable, address_exists
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -16,6 +17,18 @@ def create_order(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> OrderCreatedOut:
+    # Реальность адреса проверяем у геокодера. Эвристика в схеме уже
+    # отсекла явный мусор; здесь убеждаемся, что такой адрес существует.
+    # Если геокодер недоступен — не блокируем заказ (эвристики достаточно).
+    try:
+        if not address_exists(data.delivery_address):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Не удалось найти такой адрес — проверьте город, улицу и дом",
+            )
+    except GeocodeUnavailable:
+        pass
+
     cart = db.scalar(select(Cart).where(Cart.user_id == user.id))
     if cart is None or not cart.items:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cart is empty")

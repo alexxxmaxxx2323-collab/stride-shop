@@ -1,6 +1,30 @@
+import re
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+_VOWELS = set("аеёиоуыэюяaeiouy")
+# Разрешённые в адресе символы: буквы, цифры, пробел и обычная адресная пунктуация.
+_ADDRESS_ALLOWED = re.compile(r"^[А-Яа-яЁёA-Za-z0-9\s.,\-/№#()\"'’]+$")
+_LETTER_TOKEN = re.compile(r"[А-Яа-яЁёA-Za-z]+")
+
+
+def _looks_like_gibberish(v: str) -> bool:
+    """Грубая эвристика «это не слова, а набор букв» — без обращения в сеть.
+
+    Ловит кракозябры вида «фывфыв», «qwerty», «ййййй» до того, как мы
+    дёрнем геокодер. Реальные слова почти всегда содержат гласные и не
+    состоят из десятка одинаковых букв подряд.
+    """
+    if re.search(r"(.)\1{4,}", v):  # 5+ одинаковых символов подряд
+        return True
+    tokens = _LETTER_TOKEN.findall(v)
+    if not tokens:
+        return True  # вообще нет буквенных слов — только цифры/символы
+    for tok in tokens:
+        if len(tok) >= 4 and not (set(tok.lower()) & _VOWELS):
+            return True  # длинное «слово» без единой гласной
+    return False
 
 
 class OrderCreate(BaseModel):
@@ -23,10 +47,14 @@ class OrderCreate(BaseModel):
         v = v.strip()
         if len(v) < 10:
             raise ValueError("Адрес слишком короткий — укажите город, улицу и дом")
+        if not _ADDRESS_ALLOWED.match(v):
+            raise ValueError("В адресе есть недопустимые символы")
         if "," not in v:
             raise ValueError("Адрес через запятые: Москва, ул. Тверская, д. 1")
         if not any(c.isdigit() for c in v):
             raise ValueError("В адресе должен быть номер дома")
+        if _looks_like_gibberish(v):
+            raise ValueError("Похоже на случайный набор символов — введите настоящий адрес")
         return v
 
 
