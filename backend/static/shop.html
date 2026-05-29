@@ -176,6 +176,7 @@
   .co-form .form-row { margin-bottom: 12px; }
   .co-form input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; font-family: inherit; }
   .co-form input:focus { outline: 0; border-color: #16161a; }
+  .co-form input.input-error { border-color: #f5163f; background: #fff5f6; }
   .addr-row { position: relative; }
   .suggest-dropdown { position: absolute; left: 0; right: 0; top: 100%; background: #fff; border: 1px solid #ddd; border-top: 0; border-radius: 0 0 8px 8px; max-height: 240px; overflow-y: auto; z-index: 5; display: none; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
   .suggest-item { padding: 9px 12px; font-size: 13px; cursor: pointer; }
@@ -812,14 +813,20 @@ let coPvzCandidate = null;    // выбранный, но не подтверж�
 let siteMap = null;
 let siteCluster = null;
 let siteSelMarker = null;
-const PIN_BLUE = "#2563eb", PIN_RED = "#f5163f";
-function mapPin(color) {
-  return L.divIcon({ className: "", iconSize: [22, 30], iconAnchor: [11, 30],
-    html: `<span class="map-pin" style="--pin:${color}"></span>` });
-}
+const ICON_BLUE = window.L && new L.Icon({
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+});
+const ICON_RED = window.L && new L.Icon({
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+});
 function highlightSiteMarker(mk) {
-  if (siteSelMarker) siteSelMarker.setIcon(mapPin(PIN_BLUE));
-  mk.setIcon(mapPin(PIN_RED));
+  if (siteSelMarker) siteSelMarker.setIcon(ICON_BLUE);
+  mk.setIcon(ICON_RED);
   siteSelMarker = mk;
 }
 
@@ -901,7 +908,7 @@ async function loadSitePoints() {
   siteCluster = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50 });
   siteSelMarker = null;
   points.forEach(p => {
-    const mk = L.marker([p.lat, p.lon], { icon: mapPin(PIN_BLUE) });
+    const mk = L.marker([p.lat, p.lon], { icon: ICON_BLUE });
     mk.on("click", () => { selectSitePvz(p); highlightSiteMarker(mk); });
     siteCluster.addLayer(mk);
   });
@@ -991,28 +998,35 @@ function wireAddressSuggest() {
 }
 
 async function submitOrder() {
-  const name = document.getElementById("coName").value.trim();
-  const phone = document.getElementById("coPhone").value.trim();
+  const nameEl = document.getElementById("coName");
+  const phoneEl = document.getElementById("coPhone");
+  const addrEl = document.getElementById("coAddress");
   const err = document.getElementById("coError");
+  [nameEl, phoneEl, addrEl].forEach(el => el && el.classList.remove("input-error"));
   err.textContent = "";
 
-  if (name.length < 2) { err.textContent = "Укажите имя получателя"; return; }
+  const name = nameEl.value.trim(), phone = phoneEl.value.trim();
+  let firstMsg = "";
+  const fail = (el, msg) => { if (el) el.classList.add("input-error"); if (!firstMsg) firstMsg = msg; };
+
+  if (name.length < 2) fail(nameEl, "Укажите имя получателя");
   const digits = phone.replace(/\D/g, "");
   if (digits.length !== 11 || (digits[0] !== "7" && digits[0] !== "8") || digits[1] !== "9") {
-    err.textContent = "Введите мобильный номер: +7 9XX XXX-XX-XX";
-    return;
+    fail(phoneEl, "Введите мобильный номер: +7 9XX XXX-XX-XX");
   }
 
   const payload = { delivery_name: name, delivery_phone: phone, delivery_type: coDeliveryType };
   if (coDeliveryType === "courier") {
-    const address = document.getElementById("coAddress").value.trim();
-    if (address.length < 5) { err.textContent = "Укажите адрес доставки"; return; }
+    const address = addrEl.value.trim();
+    if (address.length < 5) fail(addrEl, "Укажите адрес доставки");
     payload.delivery_address = address;
+  } else if (!coPickup) {
+    if (!firstMsg) firstMsg = "Выберите пункт выдачи на карте";
   } else {
-    if (!coPickup) { err.textContent = "Выберите пункт выдачи на карте"; return; }
     payload.delivery_address = coPickup.address;
     payload.pickup_code = coPickup.code;
   }
+  if (firstMsg) { err.textContent = firstMsg; return; }
 
   try {
     const res = await api("/orders", {
@@ -1188,6 +1202,10 @@ document.getElementById("cartBody").addEventListener("click", e => {
   if (pvz) selectSitePvz(JSON.parse(decodeURIComponent(pvz.dataset.pvz)));
   // подтверждение ПВЗ
   if (e.target.closest("[data-confirm-pvz]")) confirmSitePvz();
+});
+
+document.getElementById("cartBody").addEventListener("input", e => {
+  if (e.target.classList) e.target.classList.remove("input-error");
 });
 
 document.getElementById("cartBody").addEventListener("change", e => {

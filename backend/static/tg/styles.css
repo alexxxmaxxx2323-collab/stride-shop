@@ -123,6 +123,7 @@ body {
   background: var(--bg); color: var(--text);
 }
 .field .err { color: var(--accent); font-size: 13px; margin-top: 6px; }
+.field input.input-error, input.input-error { border-color: var(--accent) !important; background: color-mix(in srgb, var(--accent) 7%, var(--bg)); }
 
 /* Кнопка-фолбэк (когда нет Telegram MainButton) */
 .fallback-btn {

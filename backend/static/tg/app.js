@@ -30,14 +30,21 @@ const state = {
 let pvzMap = null;           // экземпляр Leaflet-карты
 let pvzCluster = null;       // группа-кластер маркеров
 let pvzSelMarker = null;     // подсвеченный (красный) маркер
-const PIN_BLUE = "#2563eb", PIN_RED = "#f5163f";
-function mapPin(color) {
-  return L.divIcon({ className: "", iconSize: [22, 30], iconAnchor: [11, 30],
-    html: `<span class="map-pin" style="--pin:${color}"></span>` });
-}
+// Вертикальные пины Leaflet: синий по умолчанию, красный — выбранный.
+const ICON_BLUE = window.L && new L.Icon({
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+});
+const ICON_RED = window.L && new L.Icon({
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+});
 function highlightMarker(mk) {
-  if (pvzSelMarker) pvzSelMarker.setIcon(mapPin(PIN_BLUE));
-  mk.setIcon(mapPin(PIN_RED));
+  if (pvzSelMarker) pvzSelMarker.setIcon(ICON_BLUE);
+  mk.setIcon(ICON_RED);
   pvzSelMarker = mk;
 }
 
@@ -538,7 +545,7 @@ async function loadPvzPoints() {
   pvzCluster = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50 });
   pvzSelMarker = null;
   points.forEach((p) => {
-    const mk = L.marker([p.lat, p.lon], { icon: mapPin(PIN_BLUE) });
+    const mk = L.marker([p.lat, p.lon], { icon: ICON_BLUE });
     mk.on("click", () => { selectPvz(p); highlightMarker(mk); });
     pvzCluster.addLayer(mk);
   });
@@ -582,23 +589,29 @@ function confirmPvz() {
 }
 
 async function placeOrder() {
-  const name = $("coName").value.trim();
-  const phone = $("coPhone").value.trim();
-  if (name.length < 2) return showCoErr("Укажите имя получателя");
+  const nameEl = $("coName"), phoneEl = $("coPhone"), addrEl = $("coAddr");
+  [nameEl, phoneEl, addrEl].forEach((el) => el && el.classList.remove("input-error"));
+  const name = nameEl.value.trim(), phone = phoneEl.value.trim();
+
+  let firstMsg = "";
+  const fail = (el, msg) => { if (el) el.classList.add("input-error"); if (!firstMsg) firstMsg = msg; };
+  if (name.length < 2) fail(nameEl, "Укажите имя получателя");
   const pe = phoneError(phone);
-  if (pe) return showCoErr(pe);
+  if (pe) fail(phoneEl, pe);
 
   let payload = { delivery_name: name, delivery_phone: phone, delivery_type: state.deliveryType };
   if (state.deliveryType === "courier") {
-    const addr = $("coAddr").value.trim();
+    const addr = addrEl.value.trim();
     const ae = addressError(addr);
-    if (ae) return showCoErr(ae);
+    if (ae) fail(addrEl, ae);
     payload.delivery_address = addr;
+  } else if (!state.pickup) {
+    if (!firstMsg) firstMsg = "Выберите пункт выдачи на карте";
   } else {
-    if (!state.pickup) return showCoErr("Выберите пункт выдачи на карте");
     payload.delivery_address = state.pickup.address;
     payload.pickup_code = state.pickup.code;
   }
+  if (firstMsg) { showCoErr(firstMsg); return; }
   showCoErr("");
 
   try {
@@ -751,6 +764,8 @@ document.addEventListener("change", (e) => {
 
 $("backBtn").addEventListener("click", goBack);
 $("cartBtn").addEventListener("click", openCart);
+// убираем красную подсветку поля, как только в нём начали печатать
+$("viewCheckout").addEventListener("input", (e) => e.target.classList && e.target.classList.remove("input-error"));
 
 let searchTimer;
 $("searchInput").addEventListener("input", (e) => {
