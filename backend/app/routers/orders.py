@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
+from app.config import settings
 from app.db import get_db
 from app.models import Cart, Order, OrderItem, User
+from app.notifications import order_summary, send_message
 from app.routers.cart import get_stock_qty
 from app.schemas.order import OrderCreate, OrderCreatedOut, OrderOut
 from app.services.geocode import GeocodeUnavailable, address_exists
@@ -15,20 +17,23 @@ router = APIRouter(prefix="/orders", tags=["orders"])
 @router.post("", response_model=OrderCreatedOut, status_code=status.HTTP_201_CREATED)
 def create_order(
     data: OrderCreate,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> OrderCreatedOut:
     # Реальность адреса проверяем у геокодера. Эвристика в схеме уже
     # отсекла явный мусор; здесь убеждаемся, что такой адрес существует.
     # Если геокодер недоступен — не блокируем заказ (эвристики достаточно).
-    try:
-        if not address_exists(data.delivery_address):
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                "Не удалось найти такой адрес — проверьте город, улицу и дом",
-            )
-    except GeocodeUnavailable:
-        pass
+    # Для самовывоза адрес — это выбранный ПВЗ (он заведомо реальный), геокодер не нужен.
+    if data.delivery_type == "courier":
+        try:
+            if not address_exists(data.delivery_address):
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    "Не удалось найти такой адрес — проверьте город, улицу и дом",
+                )
+        except GeocodeUnavailable:
+            pass
 
     cart = db.scalar(select(Cart).where(Cart.user_id == user.id))
     if cart is None or not cart.items:
@@ -53,6 +58,8 @@ def create_order(
         delivery_name=data.delivery_name,
         delivery_phone=data.delivery_phone,
         delivery_address=data.delivery_address,
+        delivery_type=data.delivery_type,
+        pickup_code=data.pickup_code if data.delivery_type == "pickup" else None,
     )
 
     total = 0
@@ -81,6 +88,18 @@ def create_order(
     cart.items.clear()
     db.commit()
     db.refresh(order)
+
+    # Уведомления шлём фоном: ответ не ждёт сети, а сбой Telegram не ломает заказ.
+    # Текст собираем сейчас, пока сессия жива (в фоне ORM-объект может отвязаться).
+    summary = order_summary(order)
+    if user.tg_id:
+        background_tasks.add_task(send_message, user.tg_id, summary)
+    if settings.admin_tg_id:
+        admin_text = (
+            f"🆕 <b>Новый заказ №{order.id}</b>\n"
+            f"{order.delivery_name} · {order.delivery_phone}\n\n" + summary
+        )
+        background_tasks.add_task(send_message, settings.admin_tg_id, admin_text)
 
     return OrderCreatedOut(
         order=OrderOut.model_validate(order),

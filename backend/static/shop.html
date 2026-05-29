@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>STRIDE · кроссовки, кеды, ботинки</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <style>
   *,*::before,*::after { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -175,6 +180,24 @@
   .suggest-item { padding: 9px 12px; font-size: 13px; cursor: pointer; }
   .suggest-item:hover { background: #f5f5f5; }
   .field-error { color: #f5163f; font-size: 12px; margin-top: 4px; }
+  /* delivery type + ПВЗ */
+  .co-seg { display: flex; gap: 8px; margin-bottom: 12px; }
+  .co-seg button { flex: 1; padding: 10px; border: 1px solid #ddd; background: #fff; border-radius: 8px; font-size: 13px; }
+  .co-seg button.active { background: #16161a; color: #fff; border-color: #16161a; }
+  .co-form select { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; font-family: inherit; }
+  .pvz-map { height: 240px; border-radius: 8px; overflow: hidden; margin: 10px 0; z-index: 0; }
+  .pvz-chosen { font-size: 13px; background: #f5f5f5; border-radius: 8px; padding: 9px 12px; margin-bottom: 8px; }
+  .pvz-hint { font-size: 12px; color: #888; margin-bottom: 4px; }
+  .pvz-detail { background: #fff; border: 1px solid #16161a; border-radius: 10px; padding: 12px; margin: 10px 0; }
+  .pvz-d-name { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .04em; }
+  .pvz-d-addr { font-size: 14px; font-weight: 600; margin: 3px 0 5px; line-height: 1.3; }
+  .pvz-d-work { font-size: 12px; color: #555; margin-bottom: 10px; }
+  .pvz-confirm { width: 100%; padding: 11px; border: 0; border-radius: 8px; font-size: 14px; font-weight: 600; background: #16161a; color: #fff; }
+  .pvz-confirm.done { background: #eaf6ea; color: #28a745; }
+  .pvz-list { max-height: 170px; overflow-y: auto; }
+  .pvz-item { display: block; width: 100%; text-align: left; padding: 9px 11px; margin-bottom: 6px; border: 1px solid #eee; border-radius: 8px; background: #fff; font-size: 12px; line-height: 1.35; }
+  .pvz-item:hover { border-color: #16161a; }
+  .pvz-empty { color: #888; font-size: 13px; padding: 10px 0; }
 
   /* ---- ORDERS LIST ---- */
   .order-row { padding: 16px 0; border-bottom: 1px solid #f3f3f3; }
@@ -778,16 +801,24 @@ function renderCart() {
   `;
 }
 
+let coDeliveryType = "courier";
+let coPickupCity = "Москва";
+let coPickup = null;          // подтверждённый ПВЗ
+let coPvzCandidate = null;    // выбранный, но не подтверждённый
+let siteMap = null;
+let siteCluster = null;
+
 function renderCheckout() {
   document.getElementById("cartTitle").textContent = "Оформление";
   document.getElementById("cartBody").innerHTML = `
     <div class="co-form">
       <div class="form-row"><input id="coName" placeholder="Имя получателя"></div>
       <div class="form-row"><input id="coPhone" type="tel" placeholder="+7 (9XX) XXX-XX-XX"></div>
-      <div class="form-row addr-row">
-        <input id="coAddress" placeholder="Москва, ул. Тверская, д. 1, кв. 5" autocomplete="off">
-        <div class="suggest-dropdown" id="suggestDrop"></div>
+      <div class="co-seg" id="coSeg">
+        <button type="button" data-dtype="courier" class="${coDeliveryType === "courier" ? "active" : ""}">Курьером</button>
+        <button type="button" data-dtype="pickup" class="${coDeliveryType === "pickup" ? "active" : ""}">Пункт выдачи</button>
       </div>
+      <div id="coDeliveryBody"></div>
       <div class="error" id="coError"></div>
     </div>
   `;
@@ -799,7 +830,96 @@ function renderCheckout() {
     </div>
   `;
   maskPhone(document.getElementById("coPhone"));
-  wireAddressSuggest();
+  renderCoDelivery();
+}
+
+function renderCoDelivery() {
+  const body = document.getElementById("coDeliveryBody");
+  if (coDeliveryType === "courier") {
+    body.innerHTML = `
+      <div class="form-row addr-row">
+        <input id="coAddress" placeholder="Москва, ул. Тверская, д. 1, кв. 5" autocomplete="off">
+        <div class="suggest-dropdown" id="suggestDrop"></div>
+      </div>`;
+    wireAddressSuggest();
+  } else {
+    const cities = ["Москва", "Санкт-Петербург", "Новосибирск", "Екатеринбург", "Казань", "Нижний Новгород", "Краснодар", "Ростов-на-Дону"];
+    body.innerHTML = `
+      <div class="form-row"><select id="coCity">${cities.map(c => `<option ${c === coPickupCity ? "selected" : ""}>${c}</option>`).join("")}</select></div>
+      <div class="pvz-hint">Нажмите точку на карте или в списке</div>
+      <div class="pvz-map" id="coMap"></div>
+      <div class="pvz-detail" id="coPvzDetail" hidden></div>
+      <div class="pvz-list" id="coPvzList"></div>`;
+    initSiteMap();
+    loadSitePoints();
+    if (coPickup) selectSitePvz(coPickup);
+  }
+}
+
+function initSiteMap() {
+  siteMap = null; siteCluster = null;
+  setTimeout(() => {
+    if (!window.L || !document.getElementById("coMap")) return;
+    siteMap = L.map("coMap", { attributionControl: false }).setView([55.75, 37.62], 10);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(siteMap);
+  }, 60);
+}
+
+async function loadSitePoints() {
+  const city = coPickupCity;
+  const listEl = document.getElementById("coPvzList");
+  if (listEl) listEl.innerHTML = '<div class="pvz-empty">Загрузка пунктов…</div>';
+  let points = [];
+  try { points = await api("/delivery/points?city=" + encodeURIComponent(city)); } catch (e) {}
+  if (coPickupCity !== city) return;  // город сменили — ответ устарел
+
+  await new Promise((res) => {
+    const t = setInterval(() => { if (siteMap) { clearInterval(t); res(); } }, 60);
+    setTimeout(() => { clearInterval(t); res(); }, 1500);
+  });
+  if (coPickupCity !== city) return;
+
+  if (siteCluster && siteMap) { siteMap.removeLayer(siteCluster); siteCluster = null; }
+  if (!points.length) { if (listEl) listEl.innerHTML = '<div class="pvz-empty">Пунктов не найдено</div>'; return; }
+  // Кластеризация близких точек (кружок с числом, раскрывается при зуме).
+  siteCluster = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50 });
+  points.forEach(p => {
+    const mk = L.marker([p.lat, p.lon]);
+    mk.on("click", () => selectSitePvz(p));
+    siteCluster.addLayer(mk);
+  });
+  if (siteMap) {
+    siteMap.addLayer(siteCluster);
+    const b = siteCluster.getBounds();
+    if (b.isValid()) siteMap.fitBounds(b, { padding: [25, 25] });
+  }
+  if (listEl) listEl.innerHTML = points.slice(0, 40)
+    .map(p => `<button type="button" class="pvz-item" data-pvz='${encodeURIComponent(JSON.stringify({ code: p.code, address: p.address, work_time: p.work_time, lat: p.lat, lon: p.lon }))}'>📍 ${p.address}</button>`)
+    .join("");
+}
+
+// Тык по точке — карточка ПВЗ с адресом, режимом работы и кнопкой подтверждения.
+function selectSitePvz(p) {
+  coPvzCandidate = p;
+  const el = document.getElementById("coPvzDetail");
+  if (!el) return;
+  const confirmed = coPickup && coPickup.code === p.code;
+  el.hidden = false;
+  el.innerHTML = `
+    <div class="pvz-d-name">Пункт выдачи</div>
+    <div class="pvz-d-addr">📍 ${p.address}</div>
+    <div class="pvz-d-work">🕒 ${p.work_time || "часы работы уточняются"}</div>
+    <button type="button" class="pvz-confirm ${confirmed ? "done" : ""}" data-confirm-pvz ${confirmed ? "disabled" : ""}>
+      ${confirmed ? "✓ Адрес подтверждён" : "Подтвердить адрес"}
+    </button>`;
+  if (siteMap && p.lat) siteMap.setView([p.lat, p.lon], 14);
+}
+
+function confirmSitePvz() {
+  const p = coPvzCandidate;
+  if (!p) return;
+  coPickup = { code: p.code, address: p.address };
+  selectSitePvz(p);
 }
 
 function maskPhone(input) {
@@ -856,7 +976,6 @@ function wireAddressSuggest() {
 async function submitOrder() {
   const name = document.getElementById("coName").value.trim();
   const phone = document.getElementById("coPhone").value.trim();
-  const address = document.getElementById("coAddress").value.trim();
   const err = document.getElementById("coError");
   err.textContent = "";
 
@@ -866,12 +985,22 @@ async function submitOrder() {
     err.textContent = "Введите мобильный номер: +7 9XX XXX-XX-XX";
     return;
   }
-  if (address.length < 5) { err.textContent = "Укажите адрес доставки"; return; }
+
+  const payload = { delivery_name: name, delivery_phone: phone, delivery_type: coDeliveryType };
+  if (coDeliveryType === "courier") {
+    const address = document.getElementById("coAddress").value.trim();
+    if (address.length < 5) { err.textContent = "Укажите адрес доставки"; return; }
+    payload.delivery_address = address;
+  } else {
+    if (!coPickup) { err.textContent = "Выберите пункт выдачи на карте"; return; }
+    payload.delivery_address = coPickup.address;
+    payload.pickup_code = coPickup.code;
+  }
 
   try {
     const res = await api("/orders", {
       method: "POST",
-      body: JSON.stringify({ delivery_name: name, delivery_phone: phone, delivery_address: address }),
+      body: JSON.stringify(payload),
     });
     await loadCart();
     closeCart();
@@ -1029,6 +1158,27 @@ document.getElementById("cartBody").addEventListener("click", e => {
   if (e.target.dataset.inc) changeQty(+e.target.dataset.inc, +1);
   if (e.target.dataset.dec) changeQty(+e.target.dataset.dec, -1);
   if (e.target.dataset.rm) removeCartItem(+e.target.dataset.rm);
+
+  // переключатель способа получения
+  const dt = e.target.closest("[data-dtype]");
+  if (dt) {
+    coDeliveryType = dt.dataset.dtype;
+    document.querySelectorAll("#coSeg button").forEach(b => b.classList.toggle("active", b.dataset.dtype === coDeliveryType));
+    renderCoDelivery();
+  }
+  // выбор ПВЗ из списка
+  const pvz = e.target.closest("[data-pvz]");
+  if (pvz) selectSitePvz(JSON.parse(decodeURIComponent(pvz.dataset.pvz)));
+  // подтверждение ПВЗ
+  if (e.target.closest("[data-confirm-pvz]")) confirmSitePvz();
+});
+
+document.getElementById("cartBody").addEventListener("change", e => {
+  if (e.target.id === "coCity") {
+    coPickupCity = e.target.value;
+    coPickup = null;
+    loadSitePoints();
+  }
 });
 
 document.getElementById("cartFoot").addEventListener("click", e => {

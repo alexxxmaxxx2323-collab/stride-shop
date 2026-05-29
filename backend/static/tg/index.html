@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>STRIDE</title>
+  <!-- Мостик Telegram: даёт window.Telegram.WebApp (тема, кнопки, данные юзера) -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!-- Leaflet: открытая карта для выбора пункта выдачи (без API-ключей) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <link rel="stylesheet" href="styles.css?v=7">
+</head>
+<body>
+  <!-- Шапка -->
+  <header class="tg-header">
+    <button class="tg-back" id="backBtn" hidden>‹</button>
+    <div class="tg-logo">STRIDE</div>
+    <button class="tg-cart-btn" id="cartBtn" aria-label="Корзина">🛒<span class="tg-cart-badge" id="cartIndN" hidden>0</span></button>
+  </header>
+
+  <!-- Экран: каталог -->
+  <section id="viewCatalog" class="view">
+    <div class="tg-search">
+      <input id="searchInput" type="search" inputmode="search" placeholder="Поиск: модель или бренд">
+    </div>
+    <div class="tg-chips" id="chips"></div>
+    <div class="tg-meta" id="meta"></div>
+    <div class="tg-grid" id="grid"></div>
+  </section>
+
+  <!-- Экран: товар -->
+  <section id="viewProduct" class="view" hidden></section>
+
+  <!-- Экран: корзина -->
+  <section id="viewCart" class="view" hidden></section>
+
+  <!-- Экран: оформление -->
+  <section id="viewCheckout" class="view" hidden></section>
+
+  <!-- Экран: оплата (тестовая) -->
+  <section id="viewPayment" class="view" hidden></section>
+
+  <!-- Экран: успех -->
+  <section id="viewSuccess" class="view" hidden></section>
+
+  <!-- Всплывающая подсказка -->
+  <div class="tg-toast" id="toast" hidden></div>
+
+  <script src="app.js?v=7"></script>
+</body>
+</html>

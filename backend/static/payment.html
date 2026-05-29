@@ -33,6 +33,16 @@
   .pay-btn:hover { background: #000; }
   .pay-btn:disabled { background: #ccc; }
   .hint { font-size: 12px; color: #888; margin-top: 14px; text-align: center; }
+  .pay-methods { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .pay-method { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: #fff; }
+  .pay-method.active { border-color: #16161a; }
+  .pay-method .dot { width: 16px; height: 16px; border-radius: 99px; border: 2px solid #ccc; }
+  .pay-method.active .dot { border-color: #16161a; background: #16161a; box-shadow: inset 0 0 0 3px #fff; }
+  .qr-box { text-align: center; padding: 16px; background: #f9f9f9; border-radius: 8px; margin-bottom: 14px; }
+  .qr-box .qr { width: 140px; height: 140px; margin: 0 auto 8px; background:
+      conic-gradient(#16161a 25%, #fff 0 50%, #16161a 0 75%, #fff 0) 0 0/20px 20px,
+      conic-gradient(#fff 25%, #16161a 0 50%, #fff 0 75%, #16161a 0) 10px 10px/20px 20px; border-radius: 8px; }
+  .cod-note { background: #f9f9f9; border-radius: 8px; padding: 14px; font-size: 13px; color: #555; margin-bottom: 14px; }
   .success { text-align: center; padding: 30px 20px; }
   .success .check { font-size: 56px; color: #28a745; margin-bottom: 14px; }
   .success h2 { margin: 0 0 8px; }
@@ -76,14 +86,22 @@ async function init() {
     return;
   }
 
-  if (order.payment_status === "paid") {
+  if (order.payment_status === "paid" || order.payment_status === "cod") {
     renderSuccess(order);
     return;
   }
   renderForm(order);
 }
 
+let payMethod = "card";
+const PAY_METHODS = [
+  { key: "sbp", label: "🏦 СБП (по QR)" },
+  { key: "card", label: "💳 Карта МИР / банковская" },
+  { key: "cod", label: "📦 При получении" },
+];
+
 function renderForm(order) {
+  const isPickup = order.delivery_type === "pickup";
   document.getElementById("wrap").innerHTML = `
     <div class="card">
       <h1>Заказ #${order.id}</h1>
@@ -96,7 +114,7 @@ function renderForm(order) {
       `).join("")}
       <div class="total"><span>Итого</span><span>${fmt(order.total_amount)}</span></div>
       <div class="delivery">
-        <strong>Доставка</strong><br>
+        <strong>${isPickup ? "Пункт выдачи" : "Доставка курьером"}</strong><br>
         ${order.delivery_name}<br>
         ${order.delivery_phone}<br>
         ${order.delivery_address}
@@ -104,44 +122,71 @@ function renderForm(order) {
     </div>
 
     <div class="card">
-      <div class="pay-head"><div class="logo">Оплата картой</div><span class="test-badge">ТЕСТОВЫЙ РЕЖИМ</span></div>
-      <div class="form-row">
-        <label>Номер карты</label>
-        <input value="4444 4444 4444 4444" disabled>
+      <div class="pay-head"><div class="logo">Оплата</div><span class="test-badge">ТЕСТОВЫЙ РЕЖИМ</span></div>
+      <div class="pay-methods" id="payMethods">
+        ${PAY_METHODS.map(m => `<div class="pay-method ${m.key === payMethod ? "active" : ""}" data-method="${m.key}"><span>${m.label}</span><span class="dot"></span></div>`).join("")}
       </div>
+      <div id="methodBody"></div>
+      <button class="pay-btn" id="payBtn"></button>
+      <div class="hint">Тестовая страница — реальные деньги не списываются.</div>
+      <div class="error" id="payError"></div>
+    </div>
+  `;
+  document.getElementById("payMethods").addEventListener("click", (e) => {
+    const m = e.target.closest("[data-method]");
+    if (!m) return;
+    payMethod = m.dataset.method;
+    document.querySelectorAll("#payMethods .pay-method").forEach(b => b.classList.toggle("active", b.dataset.method === payMethod));
+    renderMethodBody(order);
+  });
+  document.getElementById("payBtn").onclick = () => payOrder(order);
+  renderMethodBody(order);
+}
+
+function renderMethodBody(order) {
+  const body = document.getElementById("methodBody");
+  const btn = document.getElementById("payBtn");
+  if (payMethod === "card") {
+    body.innerHTML = `
+      <div class="form-row"><label>Номер карты</label><input value="2200 0000 0000 0004" disabled></div>
       <div class="two-col">
         <div class="form-row"><label>Срок</label><input value="12 / 29" disabled></div>
         <div class="form-row"><label>CVC</label><input value="123" disabled></div>
       </div>
-      <div class="form-row"><label>Имя на карте</label><input value="${order.delivery_name.toUpperCase()}" disabled></div>
-      <button class="pay-btn" id="payBtn">Оплатить ${fmt(order.total_amount)}</button>
-      <div class="hint">Это тестовая страница — реальные деньги не списываются.<br>Карта-пустышка прошита в полях.</div>
-      <div class="error" id="payError"></div>
-    </div>
-  `;
-  document.getElementById("payBtn").onclick = async () => {
-    const btn = document.getElementById("payBtn");
-    btn.disabled = true;
-    btn.textContent = "Обработка...";
-    try {
-      await api("/payments/mock", { method: "POST", body: JSON.stringify({ order_id: order.id }) });
-      const updated = await api("/orders/" + order.id);
-      renderSuccess(updated);
-    } catch (e) {
-      document.getElementById("payError").textContent = (e.body && e.body.detail) || "Ошибка";
-      btn.disabled = false;
-      btn.textContent = `Оплатить ${fmt(order.total_amount)}`;
-    }
-  };
+      <div class="form-row"><label>Имя на карте</label><input value="${order.delivery_name.toUpperCase()}" disabled></div>`;
+    btn.textContent = `Оплатить ${fmt(order.total_amount)}`;
+  } else if (payMethod === "sbp") {
+    body.innerHTML = `<div class="qr-box"><div class="qr"></div>Отсканируйте QR в приложении банка</div>`;
+    btn.textContent = `Оплатить через СБП · ${fmt(order.total_amount)}`;
+  } else {
+    body.innerHTML = `<div class="cod-note">Оплата наличными или картой при получении в пункте выдачи / у курьера. Заказ будет собран и зарезервирован.</div>`;
+    btn.textContent = `Оформить заказ (оплата при получении)`;
+  }
+}
+
+async function payOrder(order) {
+  const btn = document.getElementById("payBtn");
+  btn.disabled = true;
+  btn.textContent = "Обработка...";
+  try {
+    await api("/payments/mock", { method: "POST", body: JSON.stringify({ order_id: order.id, method: payMethod }) });
+    const updated = await api("/orders/" + order.id);
+    renderSuccess(updated);
+  } catch (e) {
+    document.getElementById("payError").textContent = (e.body && e.body.detail) || "Ошибка";
+    btn.disabled = false;
+    renderMethodBody(order);
+  }
 }
 
 function renderSuccess(order) {
+  const cod = order.payment_status === "cod";
   document.getElementById("wrap").innerHTML = `
     <div class="card" style="grid-column:1/-1">
       <div class="success">
         <div class="check">✓</div>
-        <h2>Заказ #${order.id} оплачен</h2>
-        <p>Сумма: ${fmt(order.total_amount)} · доставка по адресу ${order.delivery_address}</p>
+        <h2>Заказ #${order.id} ${cod ? "оформлен" : "оплачен"}</h2>
+        <p>Сумма: ${fmt(order.total_amount)}${cod ? " · оплата при получении" : ""}<br>${order.delivery_type === "pickup" ? "Пункт выдачи" : "Адрес"}: ${order.delivery_address}</p>
         <div class="btn-row">
           <a class="btn primary" href="/static/shop.html">← В каталог</a>
           <a class="btn" href="/static/shop.html?orders=1">Мои заказы</a>

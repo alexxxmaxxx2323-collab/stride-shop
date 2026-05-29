@@ -10,6 +10,7 @@ from app.routers import admin as admin_router
 from app.routers import auth as auth_router
 from app.routers import cart as cart_router
 from app.routers import catalog as catalog_router
+from app.routers import delivery as delivery_router
 from app.routers import favorites as favorites_router
 from app.routers import orders as orders_router
 from app.routers import payments as payments_router
@@ -23,6 +24,7 @@ app.include_router(favorites_router.router)
 app.include_router(admin_router.router)
 app.include_router(addresses_router.router)
 app.include_router(payments_router.router)
+app.include_router(delivery_router.router)
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 if STATIC_DIR.exists():

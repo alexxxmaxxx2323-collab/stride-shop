@@ -22,3 +22,6 @@ npm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Туннель для локального теста мини-аппы (не коммитим бинарник)
+cloudflared.exe

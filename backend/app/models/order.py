@@ -52,6 +52,13 @@ class Order(Base):
     delivery_name: Mapped[str] = mapped_column(String(128), nullable=False)
     delivery_phone: Mapped[str] = mapped_column(String(32), nullable=False)
     delivery_address: Mapped[str] = mapped_column(String(512), nullable=False)
+    # Способ получения: courier (адрес) | pickup (ПВЗ). Для pickup — код ПВЗ CDEK.
+    delivery_type: Mapped[str] = mapped_column(
+        String(16), default="courier", server_default="courier", nullable=False
+    )
+    pickup_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Способ оплаты: sbp | card | cod (при получении). Заполняется при оплате.
+    payment_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

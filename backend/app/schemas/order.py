@@ -31,6 +31,15 @@ class OrderCreate(BaseModel):
     delivery_name: str = Field(min_length=2, max_length=128)
     delivery_phone: str
     delivery_address: str = Field(min_length=5, max_length=512)
+    delivery_type: str = "courier"          # courier | pickup
+    pickup_code: str | None = None          # код ПВЗ CDEK при delivery_type=pickup
+
+    @field_validator("delivery_type")
+    @classmethod
+    def check_type(cls, v: str) -> str:
+        if v not in ("courier", "pickup"):
+            raise ValueError("delivery_type должен быть courier или pickup")
+        return v
 
     @field_validator("delivery_phone")
     @classmethod
@@ -82,6 +91,9 @@ class OrderOut(BaseModel):
     delivery_name: str
     delivery_phone: str
     delivery_address: str
+    delivery_type: str
+    pickup_code: str | None
+    payment_method: str | None
     created_at: datetime
     items: list[OrderItemOut]
 
