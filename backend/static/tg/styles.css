@@ -149,6 +149,7 @@ body {
 .pvz-map { height: 280px; margin: 10px 14px; border-radius: 14px; overflow: hidden; z-index: 0; }
 .pvz-chosen { font-size: 14px; color: var(--text); padding: 10px 12px; background: var(--card); border-radius: 10px; }
 .pvz-hint { padding: 0 14px; color: var(--hint); font-size: 13px; }
+.map-pin { display: block; width: 18px; height: 18px; background: var(--pin, #2563eb); border: 2px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(45deg); box-shadow: 0 1px 5px rgba(0,0,0,.45); }
 .pvz-detail { margin: 10px 14px; padding: 14px; background: var(--card); border-radius: 12px; border: 1px solid color-mix(in srgb, var(--btn) 30%, transparent); }
 .pvz-d-name { font-size: 12px; color: var(--hint); text-transform: uppercase; letter-spacing: .04em; }
 .pvz-d-addr { font-size: 15px; font-weight: 600; margin: 4px 0 6px; line-height: 1.3; }

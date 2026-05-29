@@ -66,6 +66,7 @@
   .overlay.show { opacity: 1; pointer-events: auto; }
   .panel { position: fixed; top: 0; right: 0; height: 100vh; width: 420px; max-width: 100vw; background: #fff; z-index: 60; box-shadow: -4px 0 20px rgba(0,0,0,.15); transform: translateX(100%); transition: transform .25s; display: flex; flex-direction: column; }
   .panel.show { transform: translateX(0); }
+  .panel--wide { width: 560px; }
   .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid #eee; }
   .panel-head h2 { margin: 0; font-size: 18px; }
   .panel-close { background: transparent; border: 0; font-size: 22px; }
@@ -188,7 +189,9 @@
   .pvz-map { height: 240px; border-radius: 8px; overflow: hidden; margin: 10px 0; z-index: 0; }
   .pvz-chosen { font-size: 13px; background: #f5f5f5; border-radius: 8px; padding: 9px 12px; margin-bottom: 8px; }
   .pvz-hint { font-size: 12px; color: #888; margin-bottom: 4px; }
-  .pvz-detail { background: #fff; border: 1px solid #16161a; border-radius: 10px; padding: 12px; margin: 10px 0; }
+  .map-pin { display: block; width: 18px; height: 18px; background: var(--pin, #2563eb); border: 2px solid #fff; border-radius: 50% 50% 50% 0; transform: rotate(45deg); box-shadow: 0 1px 5px rgba(0,0,0,.45); }
+  /* карточка ПВЗ — липнет к низу панели, чтобы «Подтвердить» всегда был виден */
+  .pvz-detail { background: #fff; border: 1px solid #16161a; border-radius: 10px; padding: 12px; margin: 10px 0; position: sticky; bottom: 0; z-index: 3; box-shadow: 0 -8px 16px rgba(0,0,0,.08); }
   .pvz-d-name { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .04em; }
   .pvz-d-addr { font-size: 14px; font-weight: 600; margin: 3px 0 5px; line-height: 1.3; }
   .pvz-d-work { font-size: 12px; color: #555; margin-bottom: 10px; }
@@ -770,6 +773,7 @@ function openCart() {
 }
 
 function renderCart() {
+  document.getElementById("cartPanel").classList.remove("panel--wide");
   document.getElementById("cartTitle").textContent = "Корзина";
   const body = document.getElementById("cartBody");
   const foot = document.getElementById("cartFoot");
@@ -807,8 +811,20 @@ let coPickup = null;          // подтверждённый ПВЗ
 let coPvzCandidate = null;    // выбранный, но не подтверждённый
 let siteMap = null;
 let siteCluster = null;
+let siteSelMarker = null;
+const PIN_BLUE = "#2563eb", PIN_RED = "#f5163f";
+function mapPin(color) {
+  return L.divIcon({ className: "", iconSize: [22, 30], iconAnchor: [11, 30],
+    html: `<span class="map-pin" style="--pin:${color}"></span>` });
+}
+function highlightSiteMarker(mk) {
+  if (siteSelMarker) siteSelMarker.setIcon(mapPin(PIN_BLUE));
+  mk.setIcon(mapPin(PIN_RED));
+  siteSelMarker = mk;
+}
 
 function renderCheckout() {
+  document.getElementById("cartPanel").classList.add("panel--wide");
   document.getElementById("cartTitle").textContent = "Оформление";
   document.getElementById("cartBody").innerHTML = `
     <div class="co-form">
@@ -883,9 +899,10 @@ async function loadSitePoints() {
   if (!points.length) { if (listEl) listEl.innerHTML = '<div class="pvz-empty">Пунктов не найдено</div>'; return; }
   // Кластеризация близких точек (кружок с числом, раскрывается при зуме).
   siteCluster = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50 });
+  siteSelMarker = null;
   points.forEach(p => {
-    const mk = L.marker([p.lat, p.lon]);
-    mk.on("click", () => selectSitePvz(p));
+    const mk = L.marker([p.lat, p.lon], { icon: mapPin(PIN_BLUE) });
+    mk.on("click", () => { selectSitePvz(p); highlightSiteMarker(mk); });
     siteCluster.addLayer(mk);
   });
   if (siteMap) {

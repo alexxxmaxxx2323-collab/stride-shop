@@ -43,6 +43,9 @@ class CartItem(Base):
 
 class Order(Base):
     __tablename__ = "orders"
+    # AUTOINCREMENT: номера заказов всегда растут и не переиспользуются
+    # даже после удаления (чтобы клиенту не пришёл «заказ №1» повторно).
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)

@@ -29,6 +29,17 @@ const state = {
 
 let pvzMap = null;           // экземпляр Leaflet-карты
 let pvzCluster = null;       // группа-кластер маркеров
+let pvzSelMarker = null;     // подсвеченный (красный) маркер
+const PIN_BLUE = "#2563eb", PIN_RED = "#f5163f";
+function mapPin(color) {
+  return L.divIcon({ className: "", iconSize: [22, 30], iconAnchor: [11, 30],
+    html: `<span class="map-pin" style="--pin:${color}"></span>` });
+}
+function highlightMarker(mk) {
+  if (pvzSelMarker) pvzSelMarker.setIcon(mapPin(PIN_BLUE));
+  mk.setIcon(mapPin(PIN_RED));
+  pvzSelMarker = mk;
+}
 
 const TABS = [
   { key: "", label: "Все" },
@@ -525,9 +536,10 @@ async function loadPvzPoints() {
   }
   // Кластеризация: близкие точки группируются в кружок с числом (раскрывается при зуме).
   pvzCluster = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50 });
+  pvzSelMarker = null;
   points.forEach((p) => {
-    const mk = L.marker([p.lat, p.lon]);
-    mk.on("click", () => selectPvz(p));
+    const mk = L.marker([p.lat, p.lon], { icon: mapPin(PIN_BLUE) });
+    mk.on("click", () => { selectPvz(p); highlightMarker(mk); });
     pvzCluster.addLayer(mk);
   });
   if (pvzMap) {
