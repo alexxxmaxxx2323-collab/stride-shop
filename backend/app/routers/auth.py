@@ -52,8 +52,11 @@ def tg_webapp(data: TgWebAppIn, db: Session = Depends(get_db)) -> TokenOut:
     user_field = parsed.get("user")
     if not user_field:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "user field missing in initData")
-    tg_user = json.loads(user_field)
-    tg_id = int(tg_user["id"])
+    try:
+        tg_user = json.loads(user_field)
+        tg_id = int(tg_user["id"])
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Malformed user field in initData")
 
     user = db.scalar(select(User).where(User.tg_id == tg_id))
     if user is None:

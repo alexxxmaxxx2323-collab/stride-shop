@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ProductCreate(BaseModel):
@@ -10,6 +10,12 @@ class ProductCreate(BaseModel):
     price: int = Field(ge=0)
     price_old: int | None = Field(default=None, ge=0)
     rating: float = Field(default=0.0, ge=0, le=5)
+
+    @model_validator(mode="after")
+    def check_price_old(self):
+        if self.price_old is not None and self.price_old <= self.price:
+            raise ValueError("price_old должна быть больше price (это старая цена до скидки)")
+        return self
 
 
 class ProductUpdate(BaseModel):

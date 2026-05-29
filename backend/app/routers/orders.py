@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.db import get_db
 from app.models import Cart, Order, OrderItem, User
+from app.routers.cart import get_stock_qty
 from app.schemas.order import OrderCreate, OrderCreatedOut, OrderOut
 from app.services.geocode import GeocodeUnavailable, address_exists
 
@@ -32,6 +33,17 @@ def create_order(
     cart = db.scalar(select(Cart).where(Cart.user_id == user.id))
     if cart is None or not cart.items:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cart is empty")
+
+    # Финальная проверка остатка: между добавлением в корзину и оформлением
+    # склад мог измениться (или корзина пролежала долго).
+    for ci in cart.items:
+        available = get_stock_qty(db, ci.variant_id, ci.size)
+        if ci.quantity > available:
+            name = ci.variant.product.name
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"«{name}» размер {ci.size}: на складе только {available} шт.",
+            )
 
     order = Order(
         user_id=user.id,

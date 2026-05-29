@@ -50,7 +50,11 @@ def list_products(
     if price_max is not None:
         stmt = stmt.where(Product.price <= price_max)
     if only_discount:
-        stmt = stmt.where(Product.price_old.is_not(None))
+        # Скидка реальна только если старая цена строго больше текущей —
+        # так же, как считается бейдж discount_pct на карточке.
+        stmt = stmt.where(
+            Product.price_old.is_not(None), Product.price_old > Product.price
+        )
     if q:
         stmt = stmt.where(Product.name.ilike(f"%{q}%"))
 

@@ -17,6 +17,19 @@ from app.schemas.catalog import ProductOut
 router = APIRouter(prefix="/cart", tags=["cart"])
 
 
+MAX_QTY = 20
+
+
+def get_stock_qty(db: Session, variant_id: int, size: int) -> int:
+    """Остаток конкретного варианта в конкретном размере (0 если нет строки)."""
+    stock = db.scalar(
+        select(VariantStock).where(
+            VariantStock.variant_id == variant_id, VariantStock.size == size
+        )
+    )
+    return stock.quantity if stock else 0
+
+
 def _get_or_create_cart(db: Session, user: User) -> Cart:
     cart = db.scalar(select(Cart).where(Cart.user_id == user.id))
     if cart is None:
@@ -75,12 +88,8 @@ def add_item(
     if variant is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Variant not found")
 
-    stock = db.scalar(
-        select(VariantStock).where(
-            VariantStock.variant_id == variant.id, VariantStock.size == data.size
-        )
-    )
-    if stock is None or stock.quantity <= 0:
+    available = get_stock_qty(db, variant.id, data.size)
+    if available <= 0:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             "Selected size is not available for this color",
@@ -94,10 +103,23 @@ def add_item(
             CartItem.size == data.size,
         )
     )
+    current = existing.quantity if existing else 0
+    desired = current + data.quantity
+    if desired > available:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Недостаточно на складе: доступно {available} шт.",
+        )
+    if desired > MAX_QTY:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Максимум {MAX_QTY} шт. одного товара в заказе",
+        )
+
     if existing is None:
         cart.items.append(CartItem(variant_id=variant.id, size=data.size, quantity=data.quantity))
     else:
-        existing.quantity = min(20, existing.quantity + data.quantity)
+        existing.quantity = desired
 
     db.commit()
     db.refresh(cart)
@@ -115,6 +137,12 @@ def update_item(
     item = next((i for i in cart.items if i.id == item_id), None)
     if item is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Cart item not found")
+    available = get_stock_qty(db, item.variant_id, item.size)
+    if data.quantity > available:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Недостаточно на складе: доступно {available} шт.",
+        )
     item.quantity = data.quantity
     db.commit()
     db.refresh(cart)

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -64,6 +65,13 @@ def update_product(product_id: int, data: ProductUpdate, db: Session = Depends(g
     for k, v in fields.items():
         setattr(product, k, v)
 
+    # price/price_old могли прийти по отдельности — сверяем итог.
+    if product.price_old is not None and product.price_old <= product.price:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "price_old должна быть больше price (это старая цена до скидки)",
+        )
+
     db.commit()
     db.refresh(product)
     return product
@@ -79,4 +87,13 @@ def delete_product(product_id: int, db: Session = Depends(get_db)) -> None:
     if product is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Product not found")
     db.delete(product)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Вариант товара уже фигурирует в заказах или чьей-то корзине —
+        # внешний ключ не даёт удалить, чтобы не порушить историю.
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Нельзя удалить: товар есть в заказах или корзинах",
+        )
