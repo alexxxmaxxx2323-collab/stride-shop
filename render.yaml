@@ -1,0 +1,20 @@
+# Render Blueprint — деплой магазина STRIDE (сайт + мини-аппа + API + бот-webhook).
+# Подключи репозиторий на render.com → New → Blueprint, Render прочитает этот файл.
+services:
+  - type: web
+    name: stride-shop
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: JWT_SECRET
+        generateValue: true        # Render сгенерирует случайный секрет
+      - key: TG_BOT_TOKEN
+        sync: false                # задаётся вручную в дашборде (секрет бота)
+      - key: ADMIN_TG_ID
+        sync: false                # необязательно: tg_id для копий заказов админу
+    # RENDER_EXTERNAL_URL Render подставляет сам — из него собираются webhook и URL мини-аппы.

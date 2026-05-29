@@ -23,6 +23,24 @@ class Settings(BaseSettings):
     webapp_url: str = "https://example.com/static/tg/index.html"
     # Куда слать уведомление админу о новом заказе (tg_id). Пусто — не слать.
     admin_tg_id: int | None = None
+    # Боевой домен (для webhook бота и URL мини-аппы). На Render берётся
+    # автоматически из RENDER_EXTERNAL_URL; локально можно задать PUBLIC_URL.
+    public_url: str = ""
+    render_external_url: str = ""
+    tg_webhook_secret: str = "stride-hook"
+
+    @property
+    def base_url(self) -> str:
+        return (self.public_url or self.render_external_url or "").rstrip("/")
+
+    @property
+    def mini_app_url(self) -> str:
+        """URL мини-аппы: явный webapp_url, иначе — собранный с боевого домена."""
+        if self.webapp_url and "example.com" not in self.webapp_url:
+            return self.webapp_url
+        if self.base_url:
+            return self.base_url + "/static/tg/index.html"
+        return self.webapp_url
 
 
 settings = Settings()
