@@ -208,7 +208,7 @@
 <header>
   <div class="topbar">
     <div class="logo">STRIDE</div>
-    <input class="search" placeholder="Поиск по кроссовкам, брендам, моделям" id="searchInput">
+    <input class="search" type="search" name="catalog-search" autocomplete="off" readonly placeholder="Поиск по кроссовкам, брендам, моделям" id="searchInput">
     <div class="top-actions">
       <button class="btn" id="ordersBtn" hidden>Мои заказы</button>
       <button class="btn" id="adminBtn" hidden>Админка</button>
@@ -272,13 +272,15 @@
   <div class="modal-card">
     <h2 id="modalTitle">Вход</h2>
     <div class="tabs-mini">
-      <button data-mode="login" class="active">Вход</button>
-      <button data-mode="register">Регистрация</button>
+      <button type="button" data-mode="login" class="active">Вход</button>
+      <button type="button" data-mode="register">Регистрация</button>
     </div>
-    <div class="form-row"><input id="emailInput" type="email" placeholder="Email"></div>
-    <div class="form-row"><input id="passwordInput" type="password" placeholder="Пароль (мин. 8 символов)"></div>
-    <button class="btn primary" id="submitAuth" style="width:100%;padding:10px">Войти</button>
-    <div class="error" id="authError"></div>
+    <form id="authForm" autocomplete="on">
+      <div class="form-row"><input id="emailInput" type="email" name="email" autocomplete="username" placeholder="Email"></div>
+      <div class="form-row"><input id="passwordInput" type="password" name="password" autocomplete="current-password" placeholder="Пароль (мин. 8 символов)"></div>
+      <button class="btn primary" type="submit" id="submitAuth" style="width:100%;padding:10px">Войти</button>
+      <div class="error" id="authError"></div>
+    </form>
   </div>
 </div>
 
@@ -995,7 +997,7 @@ document.getElementById("cartBtn").onclick = openCart;
 document.getElementById("ordersBtn").onclick = openOrders;
 document.getElementById("favBtn").onclick = openFavorites;
 document.getElementById("adminBtn").onclick = () => location.href = "/static/admin.html";
-document.getElementById("submitAuth").onclick = doAuth;
+document.getElementById("authForm").addEventListener("submit", (e) => { e.preventDefault(); doAuth(); });
 document.getElementById("overlay").onclick = closeCart;
 
 document.querySelectorAll(".tabs-mini button").forEach(b => b.onclick = () => {
@@ -1099,12 +1101,17 @@ document.getElementById("productModal").addEventListener("click", e => {
 document.querySelectorAll("[data-close-panel]").forEach(b => b.onclick = closeCart);
 
 let searchTimer;
-document.getElementById("searchInput").addEventListener("input", () => {
+const searchEl = document.getElementById("searchInput");
+// Поле грузится readonly, чтобы Chrome не автозаполнял его сохранённым email.
+// Снимаем readonly при первом взаимодействии — печатать можно как обычно.
+const unlockSearch = () => searchEl.removeAttribute("readonly");
+searchEl.addEventListener("focus", unlockSearch);
+searchEl.addEventListener("pointerdown", unlockSearch);
+searchEl.addEventListener("input", () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(loadCatalog, 300);
 });
 
-document.getElementById("passwordInput").addEventListener("keydown", e => { if (e.key === "Enter") doAuth(); });
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") {
     if (state.modalProduct) closeProductModal();

@@ -1,7 +1,7 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -62,7 +62,14 @@ def list_products(
             Product.price_old.is_not(None), Product.price_old > Product.price
         )
     if q:
-        stmt = stmt.where(Product.name.ilike(f"%{q}%"))
+        like = f"%{q}%"
+        # Ищем по названию модели И по названию бренда (например «vans» → Old Skool, Sk8-Hi).
+        stmt = stmt.where(
+            or_(
+                Product.name.ilike(like),
+                Product.brand_id.in_(select(Brand.id).where(Brand.name.ilike(like))),
+            )
+        )
 
     # Фильтр по размеру: товар подходит если хотя бы у одного варианта
     # есть остаток в этом размере (quantity > 0).
