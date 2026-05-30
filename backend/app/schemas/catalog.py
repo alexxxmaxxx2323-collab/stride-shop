@@ -23,6 +23,7 @@ class CategoryOut(BaseModel):
 class VariantImageOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    id: int
     url: str
     sort_order: int
 
@@ -67,6 +68,7 @@ class ProductOut(BaseModel):
 class ReviewOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    id: int
     author: str
     rating: int
     text: str

@@ -1,15 +1,40 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import io
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.db import get_db
-from app.models import Brand, Category, Product, User
-from app.schemas.admin import ProductCreate, ProductUpdate
-from app.schemas.catalog import ProductOut
+from app.models import (
+    Brand,
+    Category,
+    Product,
+    ProductVariant,
+    Review,
+    User,
+    VariantImage,
+    VariantStock,
+)
+from app.schemas.admin import (
+    ProductCreate,
+    ProductUpdate,
+    ReviewCreate,
+    StockUpdate,
+    VariantCreate,
+)
+from app.schemas.catalog import ProductOut, ReviewOut, VariantImageOut, VariantOut
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+# backend/static — туда же монтируется StaticFiles в app/main.py.
+STATIC_DIR = Path(__file__).resolve().parents[2] / "static"
+ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+MAX_IMAGE_BYTES = 15 * 1024 * 1024  # 15 МБ на файл (фото с телефона бывают крупными)
 
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
@@ -97,3 +122,210 @@ def delete_product(product_id: int, db: Session = Depends(get_db)) -> None:
             status.HTTP_409_CONFLICT,
             "Нельзя удалить: товар есть в заказах или корзинах",
         )
+
+
+# ─────────────────────────── Варианты (цвета) ───────────────────────────
+
+
+def _get_variant(db: Session, variant_id: int) -> ProductVariant:
+    variant = db.get(ProductVariant, variant_id)
+    if variant is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Variant not found")
+    return variant
+
+
+@router.post(
+    "/products/{product_id}/variants",
+    response_model=VariantOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)],
+)
+def create_variant(product_id: int, data: VariantCreate, db: Session = Depends(get_db)) -> ProductVariant:
+    product = db.get(Product, product_id)
+    if product is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Product not found")
+    next_order = max((v.sort_order for v in product.variants), default=-1) + 1
+    variant = ProductVariant(
+        product_id=product_id,
+        color_name=data.color_name,
+        color_hex=data.color_hex,
+        sort_order=next_order,
+    )
+    db.add(variant)
+    db.commit()
+    db.refresh(variant)
+    return variant
+
+
+@router.delete(
+    "/variants/{variant_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_admin)],
+)
+def delete_variant(variant_id: int, db: Session = Depends(get_db)) -> None:
+    variant = _get_variant(db, variant_id)
+    # Запоминаем url'ы фото, чтобы подчистить файлы после успешного удаления строк.
+    image_urls = [img.url for img in variant.images]
+    db.delete(variant)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Цвет уже в заказах/корзине — FK не даёт удалить (как и у товара).
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Нельзя удалить цвет: он есть в заказах или корзинах",
+        )
+    for url in image_urls:
+        _delete_image_file(db, url)
+
+
+# ─────────────────────────── Фото вариантов ───────────────────────────
+
+
+def _delete_image_file(db: Session, url: str) -> None:
+    """Удаляет файл с диска, только если на него не ссылается другая VariantImage."""
+    still_used = db.scalar(select(VariantImage).where(VariantImage.url == url))
+    if still_used is not None:
+        return
+    if not url.startswith("/static/"):
+        return
+    path = STATIC_DIR / Path(url[len("/static/"):])
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass  # файл занят/недоступен — не валим запрос из-за уборки
+
+
+@router.post(
+    "/variants/{variant_id}/images",
+    response_model=list[VariantImageOut],
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)],
+)
+async def upload_variant_images(
+    variant_id: int,
+    files: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+) -> list[VariantImage]:
+    variant = _get_variant(db, variant_id)
+    slug = variant.product.slug
+    folder = STATIC_DIR / "products" / slug
+    folder.mkdir(parents=True, exist_ok=True)
+
+    next_order = max((img.sort_order for img in variant.images), default=-1) + 1
+    created: list[VariantImage] = []
+
+    for upload in files:
+        ext = Path(upload.filename or "").suffix.lower()
+        if ext not in ALLOWED_IMAGE_EXTS:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"Недопустимый формат «{ext or '?'}». Можно: jpg, png, webp",
+            )
+        content = await upload.read()
+        if len(content) > MAX_IMAGE_BYTES:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"Файл «{upload.filename}» больше 6 МБ",
+            )
+        # Проверяем, что это действительно картинка (а не переименованный файл).
+        try:
+            Image.open(io.BytesIO(content)).verify()
+        except (UnidentifiedImageError, OSError):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"Файл «{upload.filename}» не является изображением",
+            )
+
+        fname = f"{uuid.uuid4().hex}{ext}"
+        (folder / fname).write_bytes(content)
+
+        image = VariantImage(
+            variant_id=variant_id,
+            url=f"/static/products/{slug}/{fname}",
+            sort_order=next_order,
+        )
+        next_order += 1
+        db.add(image)
+        created.append(image)
+
+    db.commit()
+    for image in created:
+        db.refresh(image)
+    return created
+
+
+@router.delete(
+    "/images/{image_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_admin)],
+)
+def delete_image(image_id: int, db: Session = Depends(get_db)) -> None:
+    image = db.get(VariantImage, image_id)
+    if image is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Image not found")
+    url = image.url
+    db.delete(image)
+    db.commit()
+    _delete_image_file(db, url)
+
+
+# ─────────────────────────── Остатки по размерам ───────────────────────────
+
+
+@router.put(
+    "/variants/{variant_id}/stock",
+    response_model=VariantOut,
+    dependencies=[Depends(require_admin)],
+)
+def set_variant_stock(variant_id: int, data: StockUpdate, db: Session = Depends(get_db)) -> ProductVariant:
+    variant = _get_variant(db, variant_id)
+    # Replace-стратегия: сносим все остатки варианта и кладём переданные.
+    # Дедуп по размеру (последнее значение побеждает) — на случай дублей во вводе.
+    by_size: dict[int, int] = {item.size: item.quantity for item in data.items}
+    for stock in list(variant.stocks):
+        db.delete(stock)
+    db.flush()
+    for size, quantity in by_size.items():
+        db.add(VariantStock(variant_id=variant_id, size=size, quantity=quantity))
+    db.commit()
+    db.refresh(variant)
+    return variant
+
+
+# ─────────────────────────── Отзывы ───────────────────────────
+
+
+@router.post(
+    "/products/{product_id}/reviews",
+    response_model=ReviewOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)],
+)
+def create_review(product_id: int, data: ReviewCreate, db: Session = Depends(get_db)) -> Review:
+    if db.get(Product, product_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Product not found")
+    review = Review(
+        product_id=product_id,
+        author=data.author,
+        rating=data.rating,
+        text=data.text,
+    )
+    db.add(review)
+    db.commit()
+    db.refresh(review)
+    return review
+
+
+@router.delete(
+    "/reviews/{review_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_admin)],
+)
+def delete_review(review_id: int, db: Session = Depends(get_db)) -> None:
+    review = db.get(Review, review_id)
+    if review is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Review not found")
+    db.delete(review)
+    db.commit()

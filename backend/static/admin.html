@@ -43,6 +43,41 @@
   .price-old { color: #aaa; text-decoration: line-through; font-size: 12px; }
   .badge { padding: 2px 8px; border-radius: 99px; background: #eef; font-size: 11px; color: #336; }
   .badge.out { background: #fee; color: #c00; }
+
+  /* ── Редактор медиа (цвета/фото/размеры) ── */
+  .media { margin-top: 18px; border-top: 1px solid #eee; padding-top: 16px; }
+  .media > h3 { margin: 0 0 12px; font-size: 15px; }
+  .media-hint { font-size: 12px; color: #888; background: #f7f7f9; padding: 10px 12px; border-radius: 8px; }
+  .variant-card { border: 1px solid #ececf0; border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .variant-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .swatch { width: 20px; height: 20px; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); flex: none; }
+  .variant-head .hex { color: #aaa; font-size: 12px; }
+  .variant-head .spacer { flex: 1; }
+  .photos { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .thumb { position: relative; width: 60px; height: 60px; }
+  .thumb img { width: 60px; height: 60px; object-fit: contain; background: #fafafa; border: 1px solid #eee; border-radius: 6px; }
+  .thumb button { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: #f5163f; color: #fff; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; }
+  .upload { width: 60px; height: 60px; border: 1px dashed #bbb; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: #888; font-size: 11px; text-align: center; background: #fafafa; font-family: inherit; padding: 0; }
+  .upload:hover { border-color: #16161a; color: #16161a; }
+  /* Файл-инпут спрятан, открываем его явным input.click() из обработчика кнопки. */
+  .file-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; left: -9999px; }
+  .sizes { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+  .size-box { width: 52px; }
+  .size-box label { font-size: 11px; text-align: center; }
+  .size-box input { padding: 5px; text-align: center; }
+  .add-color { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .add-color input[type=text] { flex: 1; }
+  .add-color input[type=color] { width: 42px; height: 38px; padding: 2px; }
+  .subhead { font-size: 13px; font-weight: 700; color: #444; margin-top: 6px; }
+
+  /* ── Отзывы ── */
+  .review-card { border: 1px solid #ececf0; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .review-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .review-head .stars { color: #f5a623; font-size: 13px; letter-spacing: 1px; }
+  .review-head .spacer { flex: 1; }
+  .review-head button { width: 22px; height: 22px; border-radius: 50%; padding: 0; line-height: 1; font-size: 13px; }
+  .review-text { font-size: 13px; color: #333; white-space: pre-wrap; }
+  .add-review { margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -71,17 +106,20 @@
         <select id="f_category_id"></select>
       </div>
       <div class="full"><label>Название</label><input id="f_name"></div>
-      <div class="full"><label>Slug (англ., через дефис)</label><input id="f_slug" placeholder="nike-air-force-1"></div>
+      <div class="full"><label>Slug (англ. адрес — можно оставить пустым, сделаю из названия)</label><input id="f_slug" placeholder="nike-air-force-1"></div>
       <div class="full"><label>Описание</label><textarea id="f_description"></textarea></div>
       <div><label>Цена, ₽</label><input id="f_price" type="number"></div>
       <div><label>Старая цена, ₽ (опц.)</label><input id="f_price_old" type="number"></div>
       <div><label>Рейтинг (0-5)</label><input id="f_rating" type="number" step="0.1" min="0" max="5"></div>
-      <div class="full" style="font-size:12px;color:#888">
-        Цвета, фото и остатки управляются seed-скриптом
-        (<code>backend/seed.py</code>) — добавь фото в <code>static/products/&lt;slug&gt;/</code>
-        и запусти <code>python seed.py</code>.
-      </div>
+      <div class="full subhead">Состав / характеристики</div>
+      <div><label>Верх</label><input id="f_upper" placeholder="Натуральная кожа"></div>
+      <div><label>Подкладка</label><input id="f_lining" placeholder="Текстиль"></div>
+      <div><label>Подошва</label><input id="f_sole" placeholder="Резина"></div>
+      <div><label>Сезон</label><input id="f_season" placeholder="Демисезон"></div>
+      <div class="full"><label>Страна</label><input id="f_country" placeholder="Вьетнам"></div>
     </div>
+    <div class="media" id="mediaSection"></div>
+    <div class="media" id="reviewsSection"></div>
     <div class="error" id="formError"></div>
     <div class="form-foot">
       <button class="btn" id="formCancel">Отмена</button>
@@ -103,6 +141,7 @@ const state = {
 };
 
 const fmt = n => n.toLocaleString("ru-RU") + " ₽";
+const SIZES = [39, 40, 41, 42, 43, 44, 45];
 
 async function api(path, opts = {}) {
   const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
@@ -114,12 +153,79 @@ async function api(path, opts = {}) {
   return body;
 }
 
+// Загрузка файлов: FormData, без Content-Type (его проставит браузер с boundary).
+async function apiUpload(path, formData) {
+  const headers = {};
+  if (state.token) headers["Authorization"] = "Bearer " + state.token;
+  const r = await fetch(path, { method: "POST", headers, body: formData });
+  const text = await r.text();
+  const body = text ? JSON.parse(text) : null;
+  if (!r.ok) throw { status: r.status, body };
+  return body;
+}
+
+// Транслит кириллицы + чистка → slug вида nike-air-force-1.
+const TRANSLIT = {
+  а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"e",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",
+  н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"h",ц:"c",ч:"ch",ш:"sh",щ:"sch",
+  ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya",
+};
+function slugify(s) {
+  return (s || "")
+    .toLowerCase()
+    .split("").map(ch => ch in TRANSLIT ? TRANSLIT[ch] : ch).join("")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+// Экранируем пользовательский текст перед вставкой в innerHTML.
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+// 422-detail FastAPI → читаемый текст вместо сырого JSON.
+const FIELD_LABELS = {
+  name: "Название", slug: "Адрес (slug)", price: "Цена", price_old: "Старая цена",
+  rating: "Рейтинг", brand_id: "Бренд", category_id: "Категория", description: "Описание",
+  color_name: "Название цвета", color_hex: "Цвет (hex)", size: "Размер", quantity: "Количество",
+  upper: "Верх", lining: "Подкладка", sole: "Подошва", season: "Сезон", country: "Страна",
+  author: "Автор", text: "Текст отзыва",
+};
+function humanizeError(detail) {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail.map(e => {
+      const field = Array.isArray(e.loc) ? e.loc[e.loc.length - 1] : "";
+      const label = FIELD_LABELS[field] || field;
+      return label ? `${label}: ${e.msg}` : e.msg;
+    }).join("; ");
+  }
+  return "Ошибка";
+}
+
 function toast(msg, isError = false) {
   const t = document.getElementById("toast");
   t.textContent = msg;
   t.classList.toggle("error", isError);
   t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), 2500);
+}
+
+// Каталог отдаёт максимум 100 товаров за страницу (page_size ≤ 100).
+// Тянем все страницы, чтобы админка показывала весь список и не падала с 422.
+async function fetchAllProducts() {
+  const PAGE_SIZE = 100;
+  let page = 1;
+  let all = [];
+  while (true) {
+    const d = await api(`/products?page_size=${PAGE_SIZE}&page=${page}`);
+    all = all.concat(d.items);
+    if (page >= (d.pages || 1)) break;
+    page++;
+  }
+  return all;
 }
 
 async function loadAll() {
@@ -148,8 +254,7 @@ async function loadAll() {
   document.getElementById("userLabel").textContent = state.user.email + " · admin";
   state.brands = await api("/brands");
   state.categories = await api("/categories");
-  const d = await api("/products?page_size=200");
-  state.products = d.items;
+  state.products = await fetchAllProducts();
   renderTable();
 }
 
@@ -190,7 +295,9 @@ function renderTable() {
   document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => deleteProduct(+b.dataset.del));
 }
 
-function openForm(productId) {
+const COMPO_FIELDS = ["upper", "lining", "sole", "season", "country"];
+
+async function openForm(productId) {
   state.editingId = productId;
   document.getElementById("formTitle").textContent = productId ? "Редактирование товара" : "Новый товар";
   document.getElementById("formError").textContent = "";
@@ -199,6 +306,7 @@ function openForm(productId) {
   document.getElementById("f_category_id").innerHTML = state.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
 
   if (productId) {
+    // Базовые поля — мгновенно из списка; состав/отзывы — из детальной карточки.
     const p = state.products.find(x => x.id === productId);
     document.getElementById("f_brand_id").value = p.brand.id;
     document.getElementById("f_category_id").value = p.category.id;
@@ -208,30 +316,54 @@ function openForm(productId) {
     document.getElementById("f_price").value = p.price;
     document.getElementById("f_price_old").value = p.price_old ?? "";
     document.getElementById("f_rating").value = p.rating;
+    COMPO_FIELDS.forEach(f => document.getElementById("f_" + f).value = "");
   } else {
     ["f_name", "f_slug", "f_description", "f_price", "f_price_old"].forEach(id => document.getElementById(id).value = "");
+    COMPO_FIELDS.forEach(f => document.getElementById("f_" + f).value = "");
     document.getElementById("f_rating").value = "4.5";
   }
-  document.getElementById("formModal").classList.add("show");
+  document.getElementById("formModal").classList.add("show");  // показываем сразу
+
+  let detail = null;
+  if (productId) {
+    try {
+      detail = await api(`/products/${productId}`);
+      document.getElementById("f_description").value = detail.description || "";
+      COMPO_FIELDS.forEach(f => document.getElementById("f_" + f).value = detail[f] || "");
+    } catch { /* деталь не подгрузилась — поля состава останутся пустыми */ }
+  }
+  renderMedia(productId, detail);
+  renderReviews(productId, detail);
 }
 
 function closeForm() {
   document.getElementById("formModal").classList.remove("show");
   state.editingId = null;
+  if (state.dirty) { state.dirty = false; refreshProducts(); }
+}
+
+async function refreshProducts() {
+  state.products = await fetchAllProducts();
+  renderTable();
 }
 
 async function submitForm() {
   const priceOldRaw = document.getElementById("f_price_old").value.trim();
+  const name = document.getElementById("f_name").value.trim();
+  let slug = document.getElementById("f_slug").value.trim();
+  // Slug не задан — генерируем из названия (транслит) и показываем в поле.
+  if (!slug) { slug = slugify(name); document.getElementById("f_slug").value = slug; }
   const data = {
     brand_id: +document.getElementById("f_brand_id").value,
     category_id: +document.getElementById("f_category_id").value,
-    name: document.getElementById("f_name").value.trim(),
-    slug: document.getElementById("f_slug").value.trim(),
+    name,
+    slug,
     description: document.getElementById("f_description").value.trim(),
     price: +document.getElementById("f_price").value,
     price_old: priceOldRaw ? +priceOldRaw : null,
     rating: parseFloat(document.getElementById("f_rating").value),
   };
+  COMPO_FIELDS.forEach(f => data[f] = document.getElementById("f_" + f).value.trim());
 
   const err = document.getElementById("formError");
   err.textContent = "";
@@ -239,15 +371,209 @@ async function submitForm() {
     if (state.editingId) {
       await api(`/admin/products/${state.editingId}`, { method: "PATCH", body: JSON.stringify(data) });
       toast("Сохранено");
+      state.dirty = true;
+      closeForm();  // карточка сохранена — закрываем окно (фото/цвета/отзывы сохраняются отдельно)
     } else {
-      await api("/admin/products", { method: "POST", body: JSON.stringify(data) });
-      toast("Создано");
+      const created = await api("/admin/products", { method: "POST", body: JSON.stringify(data) });
+      toast("Создано — теперь добавь цвета и фото");
+      state.dirty = true;
+      await refreshProducts();
+      // Новому товару нужен product_id для фото/цветов — переходим в режим редактирования.
+      openForm(created.id);
     }
-    closeForm();
-    await loadAll();
   } catch (e) {
-    err.textContent = (e.body && e.body.detail) ? JSON.stringify(e.body.detail) : "Ошибка";
+    err.textContent = humanizeError(e.body && e.body.detail);
   }
+}
+
+// ── Редактор медиа: цвета (варианты), фото, остатки по размерам ──
+async function renderMedia(productId, preloaded) {
+  const box = document.getElementById("mediaSection");
+  if (!productId) {
+    box.innerHTML = `<div class="media-hint">Сохрани товар кнопкой ниже — после этого появятся цвета, фото и размеры.</div>`;
+    return;
+  }
+  let p = preloaded;
+  if (!p) {
+    try { p = await api(`/products/${productId}`); }
+    catch { box.innerHTML = `<div class="media-hint">Не удалось загрузить медиа товара.</div>`; return; }
+  }
+
+  const variantsHtml = p.variants.map(v => {
+    const photos = v.images.map(img => `
+      <div class="thumb"><img src="${img.url}"><button data-delimg="${img.id}" title="Удалить фото">×</button></div>`).join("");
+    const bySize = {};
+    v.stocks.forEach(s => { bySize[s.size] = s.quantity; });
+    const sizes = SIZES.map(sz => `
+      <div class="size-box"><label>${sz}</label><input type="number" min="0" data-stock-var="${v.id}" data-size="${sz}" value="${bySize[sz] || 0}"></div>`).join("");
+    return `
+      <div class="variant-card">
+        <div class="variant-head">
+          <span class="swatch" style="background:${escapeHtml(v.color_hex)}"></span>
+          <strong>${escapeHtml(v.color_name)}</strong><span class="hex">${escapeHtml(v.color_hex)}</span>
+          <span class="spacer"></span>
+          <button class="btn danger" data-delvar="${v.id}">Удалить цвет</button>
+        </div>
+        <div class="photos">
+          ${photos}
+          <button type="button" class="upload" data-upbtn="${v.id}">＋ Фото</button>
+          <input type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple data-upvar="${v.id}" class="file-hidden">
+        </div>
+        <div class="sizes">
+          ${sizes}
+          <button class="btn" data-savestock="${v.id}">Сохранить остатки</button>
+        </div>
+      </div>`;
+  }).join("");
+
+  box.innerHTML = `
+    <h3>Цвета, фото и размеры</h3>
+    ${variantsHtml || `<div class="media-hint">Пока нет ни одного цвета — добавь первый ниже.</div>`}
+    <div class="add-color">
+      <input type="text" id="newColorName" placeholder="Название цвета, напр. Белый">
+      <input type="color" id="newColorHex" value="#ffffff">
+      <button class="btn primary" id="addColorBtn">＋ Добавить цвет</button>
+    </div>`;
+
+  box.querySelectorAll("[data-delvar]").forEach(b => b.onclick = () => deleteVariant(+b.dataset.delvar, productId));
+  box.querySelectorAll("[data-delimg]").forEach(b => b.onclick = () => deleteImage(+b.dataset.delimg, productId));
+  // Кнопка «＋ Фото» явно кликает спрятанный file-input (надёжно во всех браузерах).
+  box.querySelectorAll("[data-upbtn]").forEach(b => b.onclick = () => {
+    const inp = box.querySelector(`input[data-upvar="${b.dataset.upbtn}"]`);
+    if (inp) inp.click();
+  });
+  box.querySelectorAll("[data-upvar]").forEach(inp => inp.onchange = () => uploadImages(+inp.dataset.upvar, inp.files, productId));
+  box.querySelectorAll("[data-savestock]").forEach(b => b.onclick = () => saveStock(+b.dataset.savestock, productId));
+  document.getElementById("addColorBtn").onclick = () => addColor(productId);
+}
+
+async function addColor(productId) {
+  const name = document.getElementById("newColorName").value.trim();
+  const hex = document.getElementById("newColorHex").value;
+  if (!name) { toast("Укажи название цвета", true); return; }
+  try {
+    await api(`/admin/products/${productId}/variants`, { method: "POST", body: JSON.stringify({ color_name: name, color_hex: hex }) });
+    state.dirty = true;
+    toast("Цвет добавлен");
+    renderMedia(productId);
+  } catch (e) { toast(humanizeError(e.body && e.body.detail), true); }
+}
+
+async function deleteVariant(variantId, productId) {
+  if (!confirm("Удалить этот цвет вместе со всеми его фото и остатками?")) return;
+  try {
+    await api(`/admin/variants/${variantId}`, { method: "DELETE" });
+    state.dirty = true;
+    toast("Цвет удалён");
+    renderMedia(productId);
+  } catch (e) { toast(humanizeError(e.body && e.body.detail), true); }
+}
+
+async function uploadImages(variantId, files, productId) {
+  if (!files || !files.length) return;
+  const fd = new FormData();
+  [...files].forEach(f => fd.append("files", f));
+  const err = document.getElementById("formError");
+  err.textContent = "";
+  try {
+    toast("Загружаю фото…");
+    await apiUpload(`/admin/variants/${variantId}/images`, fd);
+    state.dirty = true;
+    toast("Фото загружены");
+    renderMedia(productId);
+  } catch (e) {
+    // Видимая, не исчезающая причина (формат/размер/токен), а не только тост.
+    const reason = e.body ? humanizeError(e.body.detail) : `сеть/сервер (${e.status || "?"})`;
+    err.textContent = "Не удалось загрузить фото — " + reason;
+    err.scrollIntoView({ block: "center" });
+    toast("Ошибка загрузки фото", true);
+  }
+}
+
+async function deleteImage(imageId, productId) {
+  try {
+    await api(`/admin/images/${imageId}`, { method: "DELETE" });
+    state.dirty = true;
+    toast("Фото удалено");
+    renderMedia(productId);
+  } catch (e) { toast(humanizeError(e.body && e.body.detail), true); }
+}
+
+async function saveStock(variantId, productId) {
+  const inputs = document.querySelectorAll(`[data-stock-var="${variantId}"]`);
+  const items = [...inputs].map(inp => ({ size: +inp.dataset.size, quantity: Math.max(0, parseInt(inp.value) || 0) }));
+  try {
+    await api(`/admin/variants/${variantId}/stock`, { method: "PUT", body: JSON.stringify({ items }) });
+    state.dirty = true;
+    toast("Остатки сохранены");
+    renderMedia(productId);
+  } catch (e) { toast(humanizeError(e.body && e.body.detail), true); }
+}
+
+// ── Отзывы ──
+async function renderReviews(productId, preloaded) {
+  const box = document.getElementById("reviewsSection");
+  if (!productId) {
+    box.innerHTML = `<div class="media-hint">Отзывы можно добавить после сохранения товара.</div>`;
+    return;
+  }
+  let p = preloaded;
+  if (!p) {
+    try { p = await api(`/products/${productId}`); }
+    catch { box.innerHTML = `<div class="media-hint">Не удалось загрузить отзывы.</div>`; return; }
+  }
+  const reviews = p.reviews || [];
+  const list = reviews.map(r => `
+    <div class="review-card">
+      <div class="review-head">
+        <strong>${escapeHtml(r.author)}</strong>
+        <span class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</span>
+        <span class="spacer"></span>
+        <button class="btn danger" data-delrev="${r.id}" title="Удалить отзыв">×</button>
+      </div>
+      <div class="review-text">${escapeHtml(r.text)}</div>
+    </div>`).join("");
+
+  const ratingOptions = [5, 4, 3, 2, 1].map(n => `<option value="${n}">${n} ★</option>`).join("");
+  box.innerHTML = `
+    <h3>Отзывы · ${reviews.length}</h3>
+    ${list || `<div class="media-hint">Пока нет отзывов.</div>`}
+    <div class="add-review">
+      <div class="form-grid">
+        <div><label>Автор</label><input type="text" id="revAuthor" placeholder="Имя"></div>
+        <div><label>Оценка</label><select id="revRating">${ratingOptions}</select></div>
+        <div class="full"><label>Текст отзыва</label><textarea id="revText"></textarea></div>
+      </div>
+      <div style="text-align:right;margin-top:8px">
+        <button class="btn primary" id="addReviewBtn">＋ Добавить отзыв</button>
+      </div>
+    </div>`;
+
+  box.querySelectorAll("[data-delrev]").forEach(b => b.onclick = () => deleteReview(+b.dataset.delrev, productId));
+  document.getElementById("addReviewBtn").onclick = () => addReview(productId);
+}
+
+async function addReview(productId) {
+  const author = document.getElementById("revAuthor").value.trim();
+  const rating = +document.getElementById("revRating").value;
+  const text = document.getElementById("revText").value.trim();
+  if (!author || !text) { toast("Заполни автора и текст отзыва", true); return; }
+  try {
+    await api(`/admin/products/${productId}/reviews`, { method: "POST", body: JSON.stringify({ author, rating, text }) });
+    state.dirty = true;
+    toast("Отзыв добавлен");
+    renderReviews(productId);
+  } catch (e) { toast(humanizeError(e.body && e.body.detail), true); }
+}
+
+async function deleteReview(reviewId, productId) {
+  if (!confirm("Удалить отзыв?")) return;
+  try {
+    await api(`/admin/reviews/${reviewId}`, { method: "DELETE" });
+    state.dirty = true;
+    toast("Отзыв удалён");
+    renderReviews(productId);
+  } catch (e) { toast(humanizeError(e.body && e.body.detail), true); }
 }
 
 async function deleteProduct(id) {
