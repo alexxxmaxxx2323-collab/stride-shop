@@ -29,9 +29,27 @@ class Settings(BaseSettings):
     render_external_url: str = ""
     tg_webhook_secret: str = "stride-hook"
 
+    # SMTP для писем (подтверждение e-mail). Если smtp_host пуст — письма
+    # не отправляются по-настоящему, а логируются в консоль (demo-режим).
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "Stride Shop <no-reply@stride.shop>"
+    smtp_tls: bool = True
+
+    # ЮKassa (тестовый магазин). Пусто — оплата работает в режиме заглушки.
+    yookassa_shop_id: str = ""
+    yookassa_secret_key: str = ""
+
     @property
     def base_url(self) -> str:
         return (self.public_url or self.render_external_url or "").rstrip("/")
+
+    @property
+    def site_url(self) -> str:
+        """Базовый URL сайта для ссылок в письмах. Локально — адрес uvicorn."""
+        return self.base_url or f"http://{self.app_host}:{self.app_port}"
 
     @property
     def mini_app_url(self) -> str:
