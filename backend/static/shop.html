@@ -408,6 +408,15 @@
   .co-hint { font-size: 12px; color: var(--muted-2); margin: -4px 0 12px; }
   .co-check { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; color: var(--muted); margin: 12px 0 2px; cursor: pointer; user-select: none; }
   .co-check input { width: 17px; height: 17px; margin: 1px 0 0; flex-shrink: 0; accent-color: var(--accent); }
+  .saved-addr-list { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; }
+  .saved-addr { text-align: left; font: inherit; font-size: 13px; cursor: pointer; color: var(--text);
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; transition: .14s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .saved-addr:hover { border-color: var(--accent); }
+  .co-points { margin-bottom: 12px; }
+  .co-pts-ctl { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px 26px; }
+  .co-pts-ctl input { width: 110px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--text); font: inherit; }
+  .co-pts-ctl input:focus { outline: 0; border-color: var(--accent); }
   .co-clickwrap { font-size: 12px; color: var(--muted-2); margin-top: 12px; line-height: 1.45; }
   .co-clickwrap a { color: var(--text); text-decoration: underline; }
   .co-promo { background: rgba(204,255,0,.10); border: 1px solid rgba(204,255,0,.42); color: var(--accent); font-size: 13px; font-weight: 600; padding: 11px 13px; border-radius: 9px; margin-bottom: 14px; line-height: 1.35; }
@@ -499,6 +508,13 @@
   .cat-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
   .cat-toolbar .meta { margin: 6px 0 0; }
   .sort-wrap { display: flex; align-items: center; gap: 8px; }
+  .size-chip {
+    font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
+    padding: 8px 14px; border-radius: 99px; border: 1px solid var(--line-strong);
+    background: var(--surface-2); color: var(--muted); transition: .14s;
+  }
+  .size-chip:hover { border-color: var(--accent); color: var(--text); }
+  .size-chip.on { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
   .sort-wrap label { font-size: 12px; color: var(--muted-2); text-transform: uppercase; letter-spacing: .08em; }
   #sortSelect {
     background: var(--surface-2); color: var(--text); border: 1px solid var(--line-strong);
@@ -758,6 +774,7 @@
       <div class="meta" id="meta"></div>
       <span class="brand-chip" id="brandChip"></span>
     </div>
+    <button class="size-chip" id="mySizeChip" hidden></button>
     <div class="sort-wrap">
       <label for="sortSelect">Сортировка</label>
       <select id="sortSelect">
@@ -1011,6 +1028,19 @@ function renderTopbar() {
   if (state.user) {
     document.getElementById("userLabel").textContent = state.user.email || (state.user.first_name || "Вы");
   }
+  renderSizeChip();
+}
+
+// Чип «мой размер» в каталоге — только если у пользователя сохранён размер.
+function renderSizeChip() {
+  const chip = document.getElementById("mySizeChip");
+  if (!chip) return;
+  const sz = state.user && state.user.preferred_size;
+  if (!sz) { chip.hidden = true; state.sizeFilter = null; return; }
+  chip.hidden = false;
+  const on = state.sizeFilter === sz;
+  chip.classList.toggle("on", on);
+  chip.textContent = on ? `Размер ${sz} ✕` : `Мой размер ${sz}`;
 }
 
 async function doAuth() {
@@ -1069,7 +1099,8 @@ async function loadCatalog() {
   const q = search ? `${sep}q=${encodeURIComponent(search)}` : "";
   const sort = (document.getElementById("sortSelect") || {}).value || "popular";
   const brand = state.brandFilter ? `&brand=${encodeURIComponent(state.brandFilter.slug)}` : "";
-  const d = await api(`/products${tab.params}${q}${tab.params || q ? "&" : "?"}page_size=100&sort=${sort}${brand}`);
+  const size = state.sizeFilter ? `&size=${state.sizeFilter}` : "";
+  const d = await api(`/products${tab.params}${q}${tab.params || q ? "&" : "?"}page_size=100&sort=${sort}${brand}${size}`);
   state.products = d.items;
   document.getElementById("meta").textContent = `Найдено: ${d.total} ${ruPlural(d.total, "модель", "модели", "моделей")}`;
   updateHero();
@@ -1521,8 +1552,10 @@ function renderCheckout() {
       <div class="co-hint">После оформления пришлём на почту письмо для подтверждения адреса</div>`;
   const marketing = authed ? "" : `
       <label class="co-check"><input type="checkbox" id="coMarketing" checked> Получать уведомления о заказах и скидках</label>`;
+  coUsePoints = 0; coBalance = 0;            // сбрасываем оплату баллами при входе в чекаут
   document.getElementById("cartBody").innerHTML = `
     <div class="co-form">
+      <div id="coSavedAddr"></div>
       <div class="co-section-label">Кто заберёт заказ?</div>
       <div class="co-fio form-row">
         <input id="coFirst" placeholder="Имя" value="${esc(u.first_name)}">
@@ -1540,7 +1573,8 @@ function renderCheckout() {
     </div>
   `;
   document.getElementById("cartFoot").innerHTML = `
-    <div class="total-row big"><span>К оплате</span><span>${fmt(state.cart.total)}</span></div>
+    <div id="coPoints"></div>
+    <div class="total-row big"><span>К оплате</span><span id="coPayable">${fmt(state.cart.total)}</span></div>
     <div style="display:flex;gap:8px">
       <button class="btn" id="backToCart" style="flex:1;padding:12px">← Назад</button>
       <button class="btn primary" id="confirmOrder" style="flex:2;padding:12px;font-size:15px">Перейти к оплате</button>
@@ -1551,6 +1585,76 @@ function renderCheckout() {
   `;
   maskPhone(document.getElementById("coPhone"));
   renderCoDelivery();
+  loadCheckoutExtras();   // сохранённые адреса + баланс баллов (для вошедших)
+}
+
+// Глобальное состояние оплаты баллами на чекауте.
+let coBalance = 0, coUsePoints = 0;
+
+// Подтягиваем для вошедшего пользователя: сохранённые адреса и баланс баллов.
+async function loadCheckoutExtras() {
+  if (!state.token) return;
+  const [addrs, summ] = await Promise.all([
+    api("/me/addresses").catch(() => []),
+    api("/me/summary").catch(() => null),
+  ]);
+  renderSavedAddresses(addrs || []);
+  if (summ) { coBalance = summ.bonus_balance || 0; renderPointsBlock(); }
+}
+
+function renderSavedAddresses(addrs) {
+  const el = document.getElementById("coSavedAddr");
+  if (!el || !addrs.length) return;
+  const e = s => (s == null ? "" : String(s)).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c]));
+  el.innerHTML = `<div class="co-section-label">Ваши адреса</div>
+    <div class="saved-addr-list">${addrs.map((a, i) =>
+      `<button type="button" class="saved-addr" data-ai="${i}">${e(a.recipient)} · ${e(a.full_address)}</button>`).join("")}</div>`;
+  el.querySelectorAll("[data-ai]").forEach(b => b.onclick = () => applySavedAddress(addrs[+b.dataset.ai]));
+}
+
+// Подставляем сохранённый адрес: имя/фамилия/телефон + переключаемся на курьера и адрес.
+function applySavedAddress(a) {
+  const parts = (a.recipient || "").trim().split(/\s+/);
+  const fEl = document.getElementById("coFirst"), lEl = document.getElementById("coLast");
+  if (fEl) fEl.value = parts[0] || "";
+  if (lEl) lEl.value = parts.slice(1).join(" ");
+  const ph = document.getElementById("coPhone"); if (ph) { ph.value = a.phone; maskPhone(ph); }
+  if (coDeliveryType !== "courier") {
+    coDeliveryType = "courier";
+    document.querySelectorAll("#coSeg button").forEach(b => b.classList.toggle("active", b.dataset.dtype === "courier"));
+    renderCoDelivery();
+  }
+  setTimeout(() => { const ad = document.getElementById("coAddress"); if (ad) ad.value = a.full_address; }, 60);
+  toast("Адрес подставлен");
+}
+
+function renderPointsBlock() {
+  const el = document.getElementById("coPoints");
+  if (!el) return;
+  if (!coBalance || coBalance <= 0) { el.innerHTML = ""; return; }
+  const maxUse = Math.min(coBalance, state.cart.total);
+  el.innerHTML = `
+    <div class="co-points">
+      <label class="co-check"><input type="checkbox" id="coUsePts"> Списать бонусные баллы (${coBalance})</label>
+      <div id="coPtsCtl" class="co-pts-ctl" hidden>
+        <input type="number" id="coPtsInput" min="0" max="${maxUse}" value="${maxUse}">
+        <span class="muted">макс. ${maxUse} Б</span>
+      </div>
+    </div>`;
+  const cb = document.getElementById("coUsePts");
+  const ctl = document.getElementById("coPtsCtl");
+  const inp = document.getElementById("coPtsInput");
+  const apply = () => {
+    coUsePoints = cb.checked ? Math.max(0, Math.min(parseInt(inp.value, 10) || 0, maxUse)) : 0;
+    updatePayable();
+  };
+  cb.onchange = () => { ctl.hidden = !cb.checked; apply(); };
+  inp.oninput = apply;
+}
+
+function updatePayable() {
+  const el = document.getElementById("coPayable");
+  if (el) el.textContent = fmt(Math.max(0, state.cart.total - coUsePoints));
 }
 
 function renderCoDelivery() {
@@ -1560,7 +1664,8 @@ function renderCoDelivery() {
       <div class="form-row addr-row">
         <input id="coAddress" placeholder="Москва, ул. Тверская, д. 1, кв. 5" autocomplete="off">
         <div class="suggest-dropdown" id="suggestDrop"></div>
-      </div>`;
+      </div>
+      ${state.token ? '<label class="co-check"><input type="checkbox" id="coSaveAddr"> Сохранить адрес в кабинете</label>' : ""}`;
     wireAddressSuggest();
   } else {
     const cities = ["Москва", "Санкт-Петербург", "Новосибирск", "Екатеринбург", "Казань", "Нижний Новгород", "Краснодар", "Ростов-на-Дону"];
@@ -1728,7 +1833,7 @@ async function submitOrder() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(emailEl, "Введите корректный e-mail");
   }
 
-  const payload = { delivery_name: `${first} ${last}`.trim(), delivery_phone: phone, delivery_type: coDeliveryType };
+  const payload = { delivery_name: `${first} ${last}`.trim(), delivery_phone: phone, delivery_type: coDeliveryType, use_points: coUsePoints || 0 };
   if (coDeliveryType === "courier") {
     const address = addrEl.value.trim();
     if (address.length < 5) fail(addrEl, "Укажите адрес доставки");
@@ -1773,6 +1878,15 @@ async function submitOrder() {
 
   try {
     const res = await api("/orders", { method: "POST", body: JSON.stringify(payload) });
+    // Опционально сохраняем адрес в кабинет (best-effort, не блокируем заказ).
+    const saveBox = document.getElementById("coSaveAddr");
+    if (saveBox && saveBox.checked && coDeliveryType === "courier" && payload.delivery_address) {
+      try {
+        await api("/me/addresses", { method: "POST", body: JSON.stringify({
+          recipient: payload.delivery_name, phone, full_address: payload.delivery_address,
+        }) });
+      } catch (_) { /* не критично для заказа */ }
+    }
     await loadCart();
     closeCart();
     if (!authed) toast("Регистрация прошла — письмо отправлено на почту");
@@ -2024,6 +2138,13 @@ document.getElementById("logoutBtn").onclick = () => {
 };
 document.getElementById("cartBtn").onclick = openCart;
 document.getElementById("accountBtn").onclick = () => location.href = "/static/account.html";
+document.getElementById("mySizeChip").onclick = () => {
+  const sz = state.user && state.user.preferred_size;
+  if (!sz) return;
+  state.sizeFilter = state.sizeFilter === sz ? null : sz;
+  renderSizeChip();
+  loadCatalog();
+};
 document.getElementById("userLabel").onclick = () => location.href = "/static/account.html";
 document.getElementById("userLabel").title = "Личный кабинет";
 document.getElementById("favBtn").onclick = openFavorites;

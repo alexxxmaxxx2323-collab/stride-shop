@@ -33,6 +33,7 @@ class OrderCreate(BaseModel):
     delivery_address: str = Field(min_length=5, max_length=512)
     delivery_type: str = "courier"          # courier | pickup
     pickup_code: str | None = None          # код ПВЗ CDEK при delivery_type=pickup
+    use_points: int = Field(default=0, ge=0)  # списать столько бонусных баллов (1 балл = 1 ₽)
 
     @field_validator("delivery_type")
     @classmethod

@@ -9,7 +9,7 @@ from app.models import Cart, Order, OrderItem, User
 from app.notifications import order_summary, send_message
 from app.routers.cart import get_stock_qty
 from app.schemas.order import OrderCreate, OrderCreatedOut, OrderOut
-from app.services.bonus import cashback_for_order, credit_bonus
+from app.services.bonus import bonus_balance, cashback_for_order, credit_bonus
 from app.services.geocode import GeocodeUnavailable, address_exists
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -83,17 +83,25 @@ def create_order(
                 subtotal=subtotal,
             )
         )
-    order.total_amount = total
+    # Оплата баллами: списываем не больше, чем есть на балансе и чем сумма заказа.
+    spend = 0
+    if data.use_points > 0:
+        spend = max(0, min(data.use_points, bonus_balance(db, user.id), total))
+    order.total_amount = total - spend
 
     db.add(order)
     cart.items.clear()
     db.commit()
     db.refresh(order)
 
-    # Кэшбэк баллами за заказ — пишем в бонусный леджер.
-    points = cashback_for_order(order.total_amount)
-    if points > 0:
-        credit_bonus(db, user.id, points, f"Кэшбэк за заказ №{order.id}", order_id=order.id)
+    # Списание баллов и кэшбэк — обе операции в бонусный леджер.
+    if spend > 0:
+        credit_bonus(db, user.id, -spend, f"Оплата баллами заказа №{order.id}", order_id=order.id)
+    # Кэшбэк начисляем с фактически оплаченной суммы (после списания баллов).
+    cashback = cashback_for_order(order.total_amount)
+    if cashback > 0:
+        credit_bonus(db, user.id, cashback, f"Кэшбэк за заказ №{order.id}", order_id=order.id)
+    if spend > 0 or cashback > 0:
         db.commit()
 
     # Уведомления шлём фоном: ответ не ждёт сети, а сбой Telegram не ломает заказ.
