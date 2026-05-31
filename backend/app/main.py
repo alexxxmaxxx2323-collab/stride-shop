@@ -18,6 +18,7 @@ from app.routers import delivery as delivery_router
 from app.routers import favorites as favorites_router
 from app.routers import orders as orders_router
 from app.routers import payments as payments_router
+from app.routers import support as support_router
 
 log = logging.getLogger("app")
 
@@ -66,6 +67,7 @@ app.include_router(admin_router.router)
 app.include_router(addresses_router.router)
 app.include_router(payments_router.router)
 app.include_router(delivery_router.router)
+app.include_router(support_router.router)
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 if STATIC_DIR.exists():

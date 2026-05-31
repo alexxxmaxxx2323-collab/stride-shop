@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     yookassa_shop_id: str = ""
     yookassa_secret_key: str = ""
 
+    # Виджет поддержки: каналы связи.
+    support_telegram: str = "Strideshop_bot"   # username для ссылки t.me (без @)
+    support_whatsapp: str = ""                  # телефон в межд. формате без «+» для wa.me; пусто — кнопку скрыть
+    support_hours: str = "Пн–Вс, 10:00–22:00 МСК"
+
     @property
     def base_url(self) -> str:
         return (self.public_url or self.render_external_url or "").rstrip("/")
