@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, String, func
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -25,6 +25,19 @@ class User(Base):
     email_verify_token: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
     # Согласие на маркетинговые уведомления (галочка на чекауте, по умолчанию включена).
     marketing_consent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Согласие на SMS-уведомления (тумблер в настройках ЛК).
+    sms_consent: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0", nullable=False
+    )
+    # «Мой размер» обуви — для быстрой покупки и фильтра «есть в моём размере».
+    preferred_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Реферальная программа: личный код (генерится при первом обращении) + кто пригласил.
+    referral_code: Mapped[str | None] = mapped_column(
+        String(16), unique=True, index=True, nullable=True
+    )
+    referred_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

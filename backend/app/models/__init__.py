@@ -1,3 +1,5 @@
+from app.models.address import Address
+from app.models.bonus import BonusTransaction
 from app.models.catalog import (
     Brand,
     Category,
@@ -12,6 +14,8 @@ from app.models.order import Cart, CartItem, Order, OrderItem
 from app.models.user import User
 
 __all__ = [
+    "Address",
+    "BonusTransaction",
     "Brand",
     "Cart",
     "CartItem",

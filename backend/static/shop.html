@@ -679,6 +679,29 @@
   .scrub-dot { width: 5px; height: 5px; border-radius: 99px; background: rgba(255,255,255,.4); transition: background .12s, transform .12s; }
   .scrub-dot.on { background: var(--accent); transform: scale(1.35); }
   .pm-acc-meta { color: var(--accent) !important; font-weight: 700; }
+
+  /* ЛИЧНЫЙ КАБИНЕТ */
+  .pf-greet { font-size: 19px; font-weight: 700; margin: 0 0 2px; }
+  .pf-email { color: var(--muted); font-size: 14px; margin-bottom: 16px; word-break: break-all; }
+  .pf-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 99px; }
+  .pf-badge.ok { background: rgba(204,255,0,.14); color: var(--accent); }
+  .pf-badge.warn { background: rgba(255,46,81,.15); color: var(--sale); }
+  .pf-verify { margin: 4px 0 24px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 14px; }
+  .pf-verify p { color: var(--muted); font-size: 13px; margin: 10px 0 12px; line-height: 1.45; }
+  .pf-sec { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 0 0 14px; }
+  .pf-field { margin-bottom: 13px; }
+  .pf-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .pf-field input { width: 100%; padding: 10px 12px; border-radius: 9px; font-size: 14px; font-family: inherit; background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--text); }
+  .pf-field input::placeholder { color: var(--muted-2); }
+  .pf-field input:focus { outline: 0; border-color: var(--accent); }
+  .pf-field input.input-error { border-color: var(--sale); }
+  .pf-check { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--text); margin: 6px 0 18px; cursor: pointer; }
+  .pf-check input { width: 16px; height: 16px; accent-color: var(--accent); }
+  .pf-orders-link { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; padding: 15px 16px; margin-top: 22px; border: 1px solid var(--line); border-radius: 14px; background: transparent; color: var(--text); cursor: pointer; font-size: 14px; transition: border-color .15s; }
+  .pf-orders-link:hover { border-color: var(--accent); }
+  .pf-orders-link .arr { color: var(--muted); }
+  #userLabel { cursor: pointer; }
+  #userLabel:hover { color: var(--text); border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -688,11 +711,13 @@
     <div class="logo">STRIDE</div>
     <input class="search" type="search" name="catalog-search" autocomplete="off" readonly placeholder="Поиск по кроссовкам, брендам, моделям" id="searchInput">
     <div class="top-actions">
-      <button class="btn" id="ordersBtn" hidden>Мои заказы</button>
       <button class="btn" id="adminBtn" hidden>Админка</button>
       <button class="btn" id="loginBtn">Войти</button>
       <span class="btn" id="userLabel" hidden></span>
       <button class="btn" id="logoutBtn" hidden>Выйти</button>
+      <button class="icon-btn" id="accountBtn" title="Личный кабинет" hidden>
+        <svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM3 21a9 9 0 0 1 18 0"/></svg>
+      </button>
       <button class="icon-btn" id="favBtn" title="Избранное">
         <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
         <span class="badge" id="favBadge" hidden>0</span>
@@ -764,6 +789,15 @@
     <button class="panel-close" data-close-panel>&times;</button>
   </div>
   <div class="panel-body" id="ordersBody"></div>
+</aside>
+
+<!-- PROFILE PANEL (личный кабинет) -->
+<aside class="panel" id="profilePanel">
+  <div class="panel-head">
+    <h2>Личный кабинет</h2>
+    <button class="panel-close" data-close-panel>&times;</button>
+  </div>
+  <div class="panel-body" id="profileBody"></div>
 </aside>
 
 <!-- FAVORITES PANEL -->
@@ -936,6 +970,16 @@ async function api(path, opts = {}) {
   return body;
 }
 
+// -------------------- РЕФЕРАЛЬНЫЙ КОД --------------------
+// Пришли по ссылке вида shop.html?ref=CODE — запоминаем код и учтём его
+// при регистрации (на чекауте или через «Войти»), потом очищаем.
+(function captureRef() {
+  const r = new URLSearchParams(location.search).get("ref");
+  if (r) localStorage.setItem("stride_ref", r.trim().toUpperCase());
+})();
+function pendingRef() { return localStorage.getItem("stride_ref") || undefined; }
+function clearRef() { localStorage.removeItem("stride_ref"); }
+
 // -------------------- TOAST --------------------
 function toast(msg, isError = false) {
   const t = document.getElementById("toast");
@@ -962,7 +1006,7 @@ function renderTopbar() {
   document.getElementById("loginBtn").hidden = !!state.user;
   document.getElementById("userLabel").hidden = !state.user;
   document.getElementById("logoutBtn").hidden = !state.user;
-  document.getElementById("ordersBtn").hidden = !state.user;
+  document.getElementById("accountBtn").hidden = !state.user;
   document.getElementById("adminBtn").hidden = !state.user || !state.user.is_admin;
   if (state.user) {
     document.getElementById("userLabel").textContent = state.user.email || (state.user.first_name || "Вы");
@@ -979,7 +1023,9 @@ async function doAuth() {
 
   try {
     const path = state.authMode === "register" ? "/auth/register" : "/auth/login";
-    const res = await api(path, { method: "POST", body: JSON.stringify({ email, password }) });
+    const payload = state.authMode === "register" ? { email, password, ref: pendingRef() } : { email, password };
+    const res = await api(path, { method: "POST", body: JSON.stringify(payload) });
+    if (state.authMode === "register") clearRef();
     state.token = res.access_token;
     localStorage.setItem("stride_token", state.token);
     await refreshUser();
@@ -1707,8 +1753,10 @@ async function submitOrder() {
         body: JSON.stringify({
           first_name: first, last_name: last, phone, email,
           marketing_consent: mk ? mk.checked : true,
+          ref: pendingRef(),
         }),
       });
+      clearRef();
       state.token = reg.access_token;
       localStorage.setItem("stride_token", state.token);
       await refreshUser();
@@ -1750,6 +1798,92 @@ function closeCart() {
   document.getElementById("cartPanel").classList.remove("show");
   document.getElementById("ordersPanel").classList.remove("show");
   document.getElementById("favPanel").classList.remove("show");
+  document.getElementById("profilePanel").classList.remove("show");
+}
+
+// -------------------- ЛИЧНЫЙ КАБИНЕТ --------------------
+function openProfile() {
+  if (!state.token || !state.user) { openLogin(); return; }
+  document.getElementById("overlay").classList.add("show");
+  document.getElementById("profilePanel").classList.add("show");
+  renderProfile();
+}
+
+function renderProfile() {
+  const u = state.user || {};
+  const esc = s => (s || "").replace(/"/g, "&quot;");
+  const name = [u.first_name, u.last_name].filter(Boolean).join(" ") || "Профиль";
+  // Блок статуса e-mail: подтверждён → зелёный бейдж; нет → красный + кнопка «выслать».
+  let verify = "";
+  if (u.email) {
+    verify = u.email_verified
+      ? `<div class="pf-verify"><span class="pf-badge ok">✓ E-mail подтверждён</span></div>`
+      : `<div class="pf-verify">
+           <span class="pf-badge warn">⚠ E-mail не подтверждён</span>
+           <p>Мы отправили письмо со ссылкой на <b>${esc(u.email)}</b>. Перейдите по ней,
+              чтобы подтвердить адрес и получать статусы заказов на почту.</p>
+           <button class="btn" id="pfResendBtn" onclick="resendVerification()">Выслать письмо повторно</button>
+         </div>`;
+  }
+  document.getElementById("profileBody").innerHTML = `
+    <div class="pf-greet">${esc(name)}</div>
+    <div class="pf-email">${esc(u.email) || "без e-mail"}</div>
+    ${verify}
+    <div class="pf-sec">Данные профиля</div>
+    <div class="pf-field"><label>Имя</label><input id="pfFirst" value="${esc(u.first_name)}" placeholder="Имя"></div>
+    <div class="pf-field"><label>Фамилия</label><input id="pfLast" value="${esc(u.last_name)}" placeholder="Фамилия"></div>
+    <div class="pf-field"><label>Телефон</label><input id="pfPhone" value="${esc(u.phone)}" placeholder="+7 9XX XXX-XX-XX"></div>
+    <label class="pf-check"><input type="checkbox" id="pfMarketing" ${u.marketing_consent ? "checked" : ""}> Получать уведомления о заказах и скидках</label>
+    <button class="btn primary" id="pfSaveBtn" style="width:100%;padding:11px" onclick="saveProfile()">Сохранить</button>
+    <div class="error" id="pfError"></div>
+    <button class="pf-orders-link" onclick="openProfileOrders()"><span>Мои заказы и история покупок</span><span class="arr">→</span></button>
+  `;
+}
+
+async function resendVerification() {
+  const btn = document.getElementById("pfResendBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Отправляем…"; }
+  try {
+    state.user = await api("/auth/resend-verification", { method: "POST" });
+    toast("Письмо отправлено — проверьте почту");
+    renderProfile();
+  } catch (e) {
+    const msg = e.body && e.body.detail ? e.body.detail : "Не удалось отправить письмо";
+    toast(typeof msg === "string" ? msg : "Не удалось отправить письмо", true);
+    if (btn) { btn.disabled = false; btn.textContent = "Выслать письмо повторно"; }
+  }
+}
+
+async function saveProfile() {
+  const err = document.getElementById("pfError");
+  err.textContent = "";
+  const payload = {
+    first_name: document.getElementById("pfFirst").value.trim() || null,
+    last_name: document.getElementById("pfLast").value.trim() || null,
+    phone: document.getElementById("pfPhone").value.trim() || null,
+    marketing_consent: document.getElementById("pfMarketing").checked,
+  };
+  const btn = document.getElementById("pfSaveBtn");
+  btn.disabled = true; btn.textContent = "Сохраняем…";
+  try {
+    state.user = await api("/auth/me", { method: "PATCH", body: JSON.stringify(payload) });
+    toast("Профиль сохранён");
+    renderTopbar();
+    renderProfile();
+  } catch (e) {
+    let msg = "Не удалось сохранить";
+    const d = e.body && e.body.detail;
+    if (typeof d === "string") msg = d;
+    else if (Array.isArray(d) && d[0] && d[0].msg) msg = d[0].msg;
+    err.textContent = msg;
+    btn.disabled = false; btn.textContent = "Сохранить";
+  }
+}
+
+// Из ЛК в «Мои заказы»: закрываем профиль, открываем заказы.
+function openProfileOrders() {
+  document.getElementById("profilePanel").classList.remove("show");
+  openOrders();
 }
 
 // -------------------- ORDERS --------------------
@@ -1889,7 +2023,9 @@ document.getElementById("logoutBtn").onclick = () => {
   toast("Вы вышли");
 };
 document.getElementById("cartBtn").onclick = openCart;
-document.getElementById("ordersBtn").onclick = openOrders;
+document.getElementById("accountBtn").onclick = () => location.href = "/static/account.html";
+document.getElementById("userLabel").onclick = () => location.href = "/static/account.html";
+document.getElementById("userLabel").title = "Личный кабинет";
 document.getElementById("favBtn").onclick = openFavorites;
 document.getElementById("adminBtn").onclick = () => location.href = "/static/admin.html";
 document.getElementById("authForm").addEventListener("submit", (e) => { e.preventDefault(); doAuth(); });

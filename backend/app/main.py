@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import telegram
 from app.config import settings
+from app.routers import account as account_router
 from app.routers import addresses as addresses_router
 from app.routers import admin as admin_router
 from app.routers import auth as auth_router
@@ -56,6 +57,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Stride Shop API", version="0.3.0", lifespan=lifespan)
 app.include_router(auth_router.router)
+app.include_router(account_router.router)
 app.include_router(catalog_router.router)
 app.include_router(cart_router.router)
 app.include_router(orders_router.router)

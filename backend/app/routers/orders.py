@@ -9,6 +9,7 @@ from app.models import Cart, Order, OrderItem, User
 from app.notifications import order_summary, send_message
 from app.routers.cart import get_stock_qty
 from app.schemas.order import OrderCreate, OrderCreatedOut, OrderOut
+from app.services.bonus import cashback_for_order, credit_bonus
 from app.services.geocode import GeocodeUnavailable, address_exists
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -88,6 +89,12 @@ def create_order(
     cart.items.clear()
     db.commit()
     db.refresh(order)
+
+    # Кэшбэк баллами за заказ — пишем в бонусный леджер.
+    points = cashback_for_order(order.total_amount)
+    if points > 0:
+        credit_bonus(db, user.id, points, f"Кэшбэк за заказ №{order.id}", order_id=order.id)
+        db.commit()
 
     # Уведомления шлём фоном: ответ не ждёт сети, а сбой Telegram не ломает заказ.
     # Текст собираем сейчас, пока сессия жива (в фоне ORM-объект может отвязаться).

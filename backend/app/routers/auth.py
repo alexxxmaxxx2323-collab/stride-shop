@@ -16,13 +16,16 @@ from app.auth import (
 from app.db import get_db
 from app.models import User
 from app.schemas.auth import (
+    ChangePasswordIn,
     CheckoutRegisterIn,
     LoginIn,
+    ProfileUpdateIn,
     RegisterIn,
     TgWebAppIn,
     TokenOut,
     UserOut,
 )
+from app.services.bonus import apply_referral
 from app.services.email import send_verification_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -45,6 +48,9 @@ def register(
     db.add(user)
     db.commit()
     db.refresh(user)
+    # Реферальный бонус, если пришёл по чьей-то ссылке (?ref=CODE).
+    apply_referral(db, user, data.ref)
+    db.commit()
     background_tasks.add_task(send_verification_email, user.email, token, user.first_name)
     return TokenOut(access_token=create_access_token(user.id))
 
@@ -91,6 +97,7 @@ def checkout_register(
         token = secrets.token_urlsafe(32)
         user.email_verify_token = token
 
+    apply_referral(db, user, data.ref)
     db.commit()
     db.refresh(user)
 
@@ -164,6 +171,59 @@ def tg_webapp(data: TgWebAppIn, db: Session = Depends(get_db)) -> TokenOut:
     db.commit()
     db.refresh(user)
     return TokenOut(access_token=create_access_token(user.id))
+
+
+@router.post("/resend-verification", response_model=UserOut)
+def resend_verification(
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """Повторно выслать письмо подтверждения e-mail (кнопка в личном кабинете)."""
+    if not user.email:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "К аккаунту не привязан e-mail")
+    if user.email_verified:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "E-mail уже подтверждён")
+    token = secrets.token_urlsafe(32)
+    user.email_verify_token = token
+    db.commit()
+    db.refresh(user)
+    background_tasks.add_task(send_verification_email, user.email, token, user.first_name)
+    return user
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(
+    data: ProfileUpdateIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """Редактирование профиля в личном кабинете: имя/фамилия/телефон/согласие.
+    Меняем только присланные поля (partial update); e-mail здесь не трогаем —
+    его смена требует повторного подтверждения и идёт отдельным флоу."""
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(user, key, value)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(
+    data: ChangePasswordIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """Смена пароля из личного кабинета: проверяем текущий, ставим новый."""
+    if user.password_hash is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "У аккаунта нет пароля — вход через Telegram или гостевой режим",
+        )
+    if not verify_password(data.current_password, user.password_hash):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Текущий пароль неверный")
+    user.password_hash = hash_password(data.new_password)
+    db.commit()
 
 
 @router.get("/me", response_model=UserOut)
