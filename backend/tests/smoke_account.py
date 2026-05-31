@@ -65,7 +65,7 @@ def make_order(token: str) -> int:
         token=token,
     )
     assert code == 201, f"order failed: {code} {created}"
-    return created["order"]["total_amount"]
+    return created["order"]["id"], created["order"]["total_amount"]
 
 
 def main() -> int:
@@ -78,14 +78,17 @@ def main() -> int:
     assert code == 200 and summ["orders_count"] == 0 and summ["bonus_balance"] == 0, summ
     print(f"summary ok: orders={summ['orders_count']} balance={summ['bonus_balance']}")
 
-    # 2) Кэшбэк за заказ
-    total = make_order(alice)
+    # 2) Кэшбэк начисляется ТОЛЬКО после оплаты, не при создании заказа
+    oid, total = make_order(alice)
     code, bon = request("GET", "/me/bonuses", token=alice)
-    assert code == 200
+    assert code == 200 and bon["balance"] == 0, f"до оплаты баллов быть не должно: {bon['balance']}"
+    code, pay = request("POST", "/payments/mock", {"order_id": oid, "method": "card"}, token=alice)
+    assert code == 200 and pay["payment_status"] == "paid", pay
+    code, bon = request("GET", "/me/bonuses", token=alice)
     expected = total * bon["cashback_pct"] // 100
     assert bon["balance"] == expected, f"cashback: balance={bon['balance']} expected={expected}"
     assert any("Кэшбэк" in t["reason"] for t in bon["transactions"]), bon["transactions"]
-    print(f"cashback ok: order={total} -> +{bon['balance']} баллов ({bon['cashback_pct']}%)")
+    print(f"cashback ok: оплачен заказ {total} -> +{bon['balance']} баллов ({bon['cashback_pct']}%)")
 
     # 3) Рефералка: друг регистрируется по коду alice → бонусы обоим
     code, ref = request("GET", "/me/referral", token=alice)

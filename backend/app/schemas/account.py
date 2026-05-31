@@ -3,8 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.schemas.auth import normalize_phone
 from app.schemas.catalog import ProductOut
+from app.schemas.order import normalize_ru_phone, validate_address_string
 
 
 # ---------- Адресная книга ----------
@@ -17,7 +17,13 @@ class AddressIn(BaseModel):
     @field_validator("phone")
     @classmethod
     def _phone(cls, v: str) -> str:
-        return normalize_phone(v)
+        return normalize_ru_phone(v)
+
+    @field_validator("full_address")
+    @classmethod
+    def _addr(cls, v: str) -> str:
+        # Та же строгая проверка, что и адрес доставки в заказе.
+        return validate_address_string(v)
 
 
 class AddressOut(BaseModel):

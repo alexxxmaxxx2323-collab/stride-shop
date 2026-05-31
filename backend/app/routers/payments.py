@@ -1,12 +1,34 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.db import get_db
-from app.models import Order, User
+from app.models import BonusTransaction, Order, User
+from app.services.bonus import cashback_for_order, credit_bonus
 
 router = APIRouter(prefix="/payments", tags=["payments"])
+
+
+def _credit_cashback_once(db: Session, order: Order) -> None:
+    """Начислить кэшбэк за оплаченный заказ — ровно один раз.
+    Кэшбэк положен только после фактической онлайн-оплаты (payment_status=paid)."""
+    if order.payment_status != "paid":
+        return
+    already = db.scalar(
+        select(func.count(BonusTransaction.id)).where(
+            BonusTransaction.order_id == order.id,
+            BonusTransaction.amount > 0,
+            BonusTransaction.reason.like("Кэшбэк%"),
+        )
+    )
+    if already:
+        return
+    points = cashback_for_order(order.total_amount)
+    if points > 0:
+        credit_bonus(db, order.user_id, points, f"Кэшбэк за заказ №{order.id}", order_id=order.id)
+        db.commit()
 
 
 class MockPayIn(BaseModel):
@@ -44,6 +66,10 @@ def mock_pay(
         order.payment_status = "paid"
         order.status = "paid"
     db.commit()
+
+    # Кэшбэк — только после успешной онлайн-оплаты (не для «при получении»).
+    _credit_cashback_once(db, order)
+
     return MockPayOut(
         success=True, order_id=order.id,
         payment_status=order.payment_status, payment_method=method,

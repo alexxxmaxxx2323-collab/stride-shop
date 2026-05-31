@@ -27,6 +27,31 @@ def _looks_like_gibberish(v: str) -> bool:
     return False
 
 
+def validate_address_string(v: str) -> str:
+    """Единая проверка строки адреса (используется и в заказе, и в адресной книге):
+    длина, допустимые символы, запятые, номер дома, антибред. Без сети."""
+    v = v.strip()
+    if len(v) < 10:
+        raise ValueError("Адрес слишком короткий — укажите город, улицу и дом")
+    if not _ADDRESS_ALLOWED.match(v):
+        raise ValueError("В адресе есть недопустимые символы")
+    if "," not in v:
+        raise ValueError("Адрес через запятые: Москва, ул. Тверская, д. 1")
+    if not any(c.isdigit() for c in v):
+        raise ValueError("В адресе должен быть номер дома")
+    if _looks_like_gibberish(v):
+        raise ValueError("Похоже на случайный набор символов — введите настоящий адрес")
+    return v
+
+
+def normalize_ru_phone(v: str) -> str:
+    """Привести телефон к +79XXXXXXXXX (11 цифр, мобильный РФ) или ошибка."""
+    digits = "".join(c for c in v if c.isdigit())
+    if len(digits) == 11 and digits[0] in ("7", "8") and digits[1] == "9":
+        return "+7" + digits[1:]
+    raise ValueError("Введите телефон в формате +7 9XX XXX-XX-XX")
+
+
 class OrderCreate(BaseModel):
     delivery_name: str = Field(min_length=2, max_length=128)
     delivery_phone: str
@@ -45,27 +70,12 @@ class OrderCreate(BaseModel):
     @field_validator("delivery_phone")
     @classmethod
     def normalize_phone(cls, v: str) -> str:
-        digits = "".join(c for c in v if c.isdigit())
-        # 11 цифр, начинаются с 7 или 8, мобильный код = 9XX
-        if len(digits) == 11 and digits[0] in ("7", "8") and digits[1] == "9":
-            return "+7" + digits[1:]
-        raise ValueError("Введите телефон в формате +7 9XX XXX-XX-XX")
+        return normalize_ru_phone(v)
 
     @field_validator("delivery_address")
     @classmethod
     def validate_address(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 10:
-            raise ValueError("Адрес слишком короткий — укажите город, улицу и дом")
-        if not _ADDRESS_ALLOWED.match(v):
-            raise ValueError("В адресе есть недопустимые символы")
-        if "," not in v:
-            raise ValueError("Адрес через запятые: Москва, ул. Тверская, д. 1")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("В адресе должен быть номер дома")
-        if _looks_like_gibberish(v):
-            raise ValueError("Похоже на случайный набор символов — введите настоящий адрес")
-        return v
+        return validate_address_string(v)
 
 
 class OrderItemOut(BaseModel):

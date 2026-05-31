@@ -8,7 +8,16 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.config import settings
 from app.db import get_db
-from app.models import Address, BonusTransaction, Favorite, Order, Product, User
+from app.models import (
+    Address,
+    BonusTransaction,
+    Favorite,
+    Order,
+    OrderItem,
+    Product,
+    ProductVariant,
+    User,
+)
 from app.schemas.account import (
     AddressIn,
     AddressOut,
@@ -25,8 +34,22 @@ from app.services.bonus import (
     bonus_balance,
     ensure_referral_code,
 )
+from app.services.geocode import GeocodeUnavailable, address_exists
 
 router = APIRouter(prefix="/me", tags=["account"])
+
+
+def _verify_real_address(addr: str) -> None:
+    """Проверяем существование адреса через геокодер (как на чекауте).
+    Если геокодер недоступен — не блокируем (строгая эвристика уже отсекла мусор)."""
+    try:
+        if not address_exists(addr):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Не удалось найти такой адрес — проверьте город, улицу и дом",
+            )
+    except GeocodeUnavailable:
+        pass
 
 
 @router.get("/summary", response_model=SummaryOut)
@@ -89,38 +112,55 @@ def referral(user: User = Depends(get_current_user), db: Session = Depends(get_d
 
 @router.get("/offers", response_model=OffersOut)
 def offers(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> OffersOut:
-    """Персональная подборка: товары со скидкой, в приоритете — из брендов,
-    которые пользователь добавлял в избранное."""
-    on_sale = (
-        select(Product)
-        .where(Product.price_old.is_not(None), Product.price_old > Product.price)
-    )
-    fav_brand_ids = db.scalars(
-        select(Product.brand_id)
-        .join(Favorite, Favorite.product_id == Product.id)
+    """Персональная подборка по прозрачному скорингу.
+
+    Сигнал вкуса собираем из избранного и истории покупок (бренды + категории),
+    затем оцениваем каждый товар в наличии:
+      +3  бренд из ваших интересов
+      +2  категория из ваших интересов
+      +2  товар со скидкой
+      +rating·0.5  выше рейтинг — выше в выдаче
+    Уже знакомые товары (в избранном/купленные) из выдачи исключаем.
+    Без сигнала (новый пользователь) подборка вырождается в «популярное со скидкой».
+    """
+    favorited = db.scalars(
+        select(Product).join(Favorite, Favorite.product_id == Product.id)
         .where(Favorite.user_id == user.id)
-        .distinct()
+    ).all()
+    bought = db.scalars(
+        select(Product)
+        .join(ProductVariant, ProductVariant.product_id == Product.id)
+        .join(OrderItem, OrderItem.variant_id == ProductVariant.id)
+        .join(Order, Order.id == OrderItem.order_id)
+        .where(Order.user_id == user.id)
     ).all()
 
-    chosen: list[Product] = []
-    if fav_brand_ids:
-        chosen = list(
-            db.scalars(on_sale.where(Product.brand_id.in_(fav_brand_ids)).limit(8)).all()
-        )
-    # Добор до 8 общими скидочными товарами (без дублей).
-    if len(chosen) < 8:
-        seen = {p.id for p in chosen}
-        for p in db.scalars(on_sale.order_by(Product.rating.desc()).limit(12)).all():
-            if p.id not in seen:
-                chosen.append(p)
-                seen.add(p.id)
-            if len(chosen) >= 8:
-                break
+    signal = list(favorited) + list(bought)
+    brand_ids = {p.brand_id for p in signal}
+    cat_ids = {p.category_id for p in signal}
+    seen = {p.id for p in signal}  # уже знакомые — не рекомендуем повторно
+
+    scored: list[tuple[float, Product]] = []
+    for p in db.scalars(select(Product)).all():
+        if p.id in seen or not p.in_stock:
+            continue
+        score = 0.0
+        if p.brand_id in brand_ids:
+            score += 3
+        if p.category_id in cat_ids:
+            score += 2
+        if p.discount_pct:
+            score += 2
+        score += (p.rating or 0) * 0.5
+        scored.append((score, p))
+
+    scored.sort(key=lambda t: (t[0], t[1].rating or 0), reverse=True)
+    chosen = [p for _, p in scored[:8]]
 
     reason = (
-        "На основе ваших избранных брендов"
-        if fav_brand_ids
-        else "Лучшие предложения со скидкой"
+        "На основе ваших интересов и покупок"
+        if brand_ids
+        else "Популярное со скидкой — присмотритесь"
     )
     return OffersOut(
         reason=reason,
@@ -153,6 +193,7 @@ def list_addresses(
 def create_address(
     data: AddressIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> Address:
+    _verify_real_address(data.full_address)
     # Первый адрес делаем дефолтным автоматически.
     has_any = db.scalar(select(func.count(Address.id)).where(Address.user_id == user.id)) or 0
     make_default = data.is_default or has_any == 0
@@ -181,6 +222,8 @@ def update_address(
     addr = db.get(Address, address_id)
     if addr is None or addr.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Адрес не найден")
+    if data.full_address != addr.full_address:
+        _verify_real_address(data.full_address)
     if data.is_default and not addr.is_default:
         _unset_defaults(db, user.id)
     addr.recipient = data.recipient

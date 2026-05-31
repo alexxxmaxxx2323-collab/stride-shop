@@ -9,7 +9,7 @@ from app.models import Cart, Order, OrderItem, User
 from app.notifications import order_summary, send_message
 from app.routers.cart import get_stock_qty
 from app.schemas.order import OrderCreate, OrderCreatedOut, OrderOut
-from app.services.bonus import bonus_balance, cashback_for_order, credit_bonus
+from app.services.bonus import bonus_balance, credit_bonus
 from app.services.geocode import GeocodeUnavailable, address_exists
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -94,14 +94,12 @@ def create_order(
     db.commit()
     db.refresh(order)
 
-    # Списание баллов и кэшбэк — обе операции в бонусный леджер.
+    # Баллы списываем сразу — резервируем за заказ, чтобы их нельзя было
+    # потратить дважды на разные неоплаченные заказы.
+    # Кэшбэк здесь НЕ начисляем: он положен только после фактической оплаты
+    # (см. app/routers/payments.py → mock_pay).
     if spend > 0:
         credit_bonus(db, user.id, -spend, f"Оплата баллами заказа №{order.id}", order_id=order.id)
-    # Кэшбэк начисляем с фактически оплаченной суммы (после списания баллов).
-    cashback = cashback_for_order(order.total_amount)
-    if cashback > 0:
-        credit_bonus(db, user.id, cashback, f"Кэшбэк за заказ №{order.id}", order_id=order.id)
-    if spend > 0 or cashback > 0:
         db.commit()
 
     # Уведомления шлём фоном: ответ не ждёт сети, а сбой Telegram не ломает заказ.
