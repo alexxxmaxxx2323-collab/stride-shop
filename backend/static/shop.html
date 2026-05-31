@@ -625,17 +625,60 @@
   /* цвет-кружки: чёткая светлая обводка, чтобы чёрный не сливался с тёмной карточкой */
   .color-dot { width: 15px; height: 15px; border: 1.5px solid rgba(255,255,255,.55); }
 
-  /* правки v3: цены акцентом (отделяем от белого названия), рейтинг/звёзды ярче */
-  .name { color: #ffffff; font-weight: 600; }
-  .price { color: var(--accent); }            /* обычная цена — лаймом */
-  .price.sale-price { color: var(--sale); }   /* со скидкой — красным */
-  .pm-price { color: var(--accent); }
+  /* ----------------------------------------------------------------
+     ЕДИНАЯ ПАЛИТРА КАРТОЧКИ (правки v5)
+     Акцент-лайм держит НАЗВАНИЕ модели (главный смысловой элемент).
+     Цена — яркая белая (чтобы не сливалась с лаймовым названием).
+     Распродажная цена — красная. Рейтинг — белый. Без лишних цветов.
+     ---------------------------------------------------------------- */
+  .name { color: var(--accent); font-weight: 700; font-size: 16.5px; }  /* название — лаймом */
+  .price { color: #ffffff; font-weight: 800; }                          /* цена — белой, отделяем от названия */
+  .price.sale-price { color: var(--sale); }                             /* со скидкой — красным */
+  .pm-name { color: var(--accent); }                                    /* название в модалке — лаймом */
+  .pm-price { color: #ffffff; }
   .pm-price.sale-price { color: var(--sale); }
-  /* рейтинг и отзывы — золотые звёзды, жирнее */
-  .card-rating { color: #ffb400; font-weight: 700; }
-  .pm-rating { color: #cfcfd6; }
-  .pm-rev-stars { color: #ffb400; font-size: 13px; }
-  .pm-acc-meta { color: #ffb400 !important; font-weight: 700; }
+
+  /* рейтинг — белый, заметен яркостью и жирностью, а не цветом */
+  .card-rating {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 13px; font-weight: 700; line-height: 1;
+    color: #ffffff;
+  }
+  .card-rating .star { color: #ffffff; font-size: 13px; }
+
+  /* рейтинг и отзывы в модалке — тоже белым, отдельно от лаймового названия */
+  .pm-rating { color: #e7e7ec; font-weight: 600; }
+  .pm-rating .star { color: #ffffff; font-weight: 700; }
+  .pm-rev-stars { color: #e7e7ec; font-size: 13px; }
+
+  /* цвет-кружки выбора в модалке — САМА кнопка залита цветом варианта (без вложений) */
+  .pm-colors { gap: 12px; }
+  .pm-color {
+    width: 30px; height: 30px; border-radius: 50%;
+    padding: 0; cursor: pointer;
+    border: 2px solid #c9c9d0;                 /* контур по умолчанию — светлый, чтобы любой цвет был очерчен */
+    box-shadow: 0 1px 3px rgba(0,0,0,.45);
+    transition: transform .1s, border-color .15s, box-shadow .15s;
+  }
+  .pm-color:hover { transform: scale(1.08); }
+  .pm-color.active {                            /* выбранный — обводка лаймом */
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(204,255,0,.28), 0 1px 3px rgba(0,0,0,.4);
+  }
+  .pm-color-inner { display: none; }            /* старый внутренний слой больше не используется */
+
+  /* «скраб» фото по наведению: курсор-индикатор + точки-прогресс */
+  .thumb { cursor: pointer; }
+  .scrub-dots {
+    position: absolute; left: 0; right: 0; bottom: 9px; z-index: 2;
+    display: flex; justify-content: center; gap: 5px;
+    opacity: 0; transition: opacity .2s; pointer-events: none;
+  }
+  .card:hover .scrub-dots { opacity: 1; }
+  .scrub-dot { width: 5px; height: 5px; border-radius: 99px; background: rgba(255,255,255,.4); transition: background .12s, transform .12s; }
+  .scrub-dot.on { background: var(--accent); transform: scale(1.35); }
+  .pm-acc-meta { color: var(--accent) !important; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -1057,30 +1100,32 @@ function renderGrid(animate = false) {
 
 function renderCard(p, i) {
   const isFav = state.favoriteIds.has(p.id);
-  const colorChips = p.variants.slice(0, 4).map(v =>
-    `<span class="color-dot" style="color: ${v.color_hex}" title="${v.color_name}"></span>`
-  ).join("");
-  const moreColors = p.variants.length > 4 ? `<span class="more-colors">+${p.variants.length - 4}</span>` : "";
+  // тег: распродажа (−%) / Hot (топ по рейтингу, «хит продаж») / New
   const tag = p.discount_pct
     ? `<span class="tag tag--sale">−${p.discount_pct}%</span>`
-    : (p.rating >= 4.8 ? `<span class="tag tag--hot">Hot</span>` : `<span class="tag tag--new">New</span>`);
+    : (p.rating >= 4.8
+        ? `<span class="tag tag--hot" title="Хит продаж — один из самых популярных и высокооценённых">Hot</span>`
+        : `<span class="tag tag--new">New</span>`);
   const feature = i === 0 ? " card--feature" : "";
+  // фото для «скраба» по наведению: все кадры первого цвета (или одно главное)
+  const scrub = ((p.variants[0] && p.variants[0].images) || []).map(im => im.url);
+  const imgs = scrub.length ? scrub : [p.primary_image];
+  const imgsAttr = encodeURIComponent(JSON.stringify(imgs));
   return `
     <article class="card${feature}" data-open-product="${p.id}">
-      <div class="thumb">
+      <div class="thumb" data-imgs="${imgsAttr}">
         ${tag}
         <button class="card-fav ${isFav ? "active" : ""}" data-fav="${p.id}" title="${isFav ? "Удалить из избранного" : "В избранное"}">${HEART_SVG}</button>
         <img src="${p.primary_image}" alt="${p.name}" loading="lazy">
-        <div class="quick"><span class="quick-btn">Быстрый выбор →</span></div>
+        ${imgs.length > 1 ? `<div class="scrub-dots">${imgs.map((_, k) => `<span class="scrub-dot${k === 0 ? " on" : ""}"></span>`).join("")}</div>` : ""}
       </div>
       <div class="body">
         <div class="brand">${p.brand.name}</div>
         <div class="name">${p.name}</div>
-        <div class="colors-row">${colorChips}${moreColors}</div>
         <div class="price-row">
           <span class="price ${p.price_old ? "sale-price" : ""}">${fmt(p.price)}</span>
           ${p.price_old ? `<span class="price-old">${fmt(p.price_old)}</span>` : ""}
-          <span class="card-rating">★ ${p.rating.toFixed(1)}</span>
+          <span class="card-rating"><span class="star">★</span>${p.rating.toFixed(1)}</span>
         </div>
       </div>
     </article>
@@ -1153,7 +1198,7 @@ function renderProductModal() {
         <div>
           <div class="pm-brand">${p.brand.name}</div>
           <h2 class="pm-name">${p.name}</h2>
-          <div class="pm-rating">★ ${p.rating.toFixed(1)} · ${p.category.name}</div>
+          <div class="pm-rating"><span class="star">★</span> ${p.rating.toFixed(1)} · ${p.category.name}</div>
         </div>
         <div class="pm-price-row">
           <span class="pm-price ${p.price_old ? "sale-price" : ""}">${fmt(p.price)}</span>
@@ -1165,9 +1210,7 @@ function renderProductModal() {
           <div class="pm-section-title">Цвет</div>
           <div class="pm-colors">
             ${p.variants.map((variant, idx) => `
-              <button class="pm-color ${idx === state.modalVariantIdx ? "active" : ""}" data-pm-color="${idx}" title="${variant.color_name}" style="color: ${variant.color_hex}">
-                <span class="pm-color-inner"></span>
-              </button>
+              <button class="pm-color ${idx === state.modalVariantIdx ? "active" : ""}" data-pm-color="${idx}" title="${variant.color_name}" style="background: ${variant.color_hex}"></button>
             `).join("")}
           </div>
           <div class="pm-color-name">${v.color_name}</div>
@@ -1259,7 +1302,7 @@ function renderAccordion(p) {
   }
 
   return `
-    <div class="pm-acc">
+    <div class="pm-acc" id="pmAcc">
       ${accItem("about", "О товаре", about)}
       ${accItem("specs", "Состав", specs)}
       ${accItem("brand", "О бренде", brandDesc)}
@@ -1650,7 +1693,7 @@ async function submitOrder() {
     payload.delivery_address = coPickup.address;
     payload.pickup_code = coPickup.code;
   }
-  if (firstMsg) { err.textContent = firstMsg; return; }
+  if (firstMsg) { showCoError(firstMsg); return; }
 
   // Гость → авторегистрация (Lamoda): заводим сессию, достраиваем до аккаунта,
   // переносим локальную корзину/избранное на сервер.
@@ -1673,9 +1716,9 @@ async function submitOrder() {
       await loadCart();
     } catch (e) {
       state.token = null;       // откатываем сессию, чтобы гость мог поправить данные
-      err.textContent = e.status === 409
+      showCoError(e.status === 409
         ? "Этот e-mail уже зарегистрирован. Войдите в аккаунт, чтобы продолжить."
-        : errMsg(e, "Не удалось завершить регистрацию");
+        : errMsg(e, "Не удалось завершить регистрацию"));
       return;
     }
   }
@@ -1687,8 +1730,19 @@ async function submitOrder() {
     if (!authed) toast("Регистрация прошла — письмо отправлено на почту");
     location.href = res.payment_url;
   } catch (e) {
-    err.textContent = errMsg(e, "Ошибка оформления");
+    showCoError(errMsg(e, "Ошибка оформления"));
   }
+}
+
+// Ошибку чекаута показываем заметно: текст в форме + toast по центру + подскролл,
+// иначе сообщение прячется внизу длинной формы и кажется, что «ничего не происходит».
+function showCoError(msg) {
+  const err = document.getElementById("coError");
+  if (err) {
+    err.textContent = msg;
+    err.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  toast(msg, true);
 }
 
 function closeCart() {
@@ -1884,6 +1938,35 @@ document.getElementById("grid").addEventListener("click", e => {
   if (card) openProductModal(+card.dataset.openProduct);
 });
 
+// «скраб» фото: движение курсора по карточке листает кадры товара,
+// скорость листания = скорости курсора; остановился — фото замерло.
+(function setupScrub() {
+  const gridEl = document.getElementById("grid");
+  const parseImgs = t => { try { return JSON.parse(decodeURIComponent(t.dataset.imgs || "")); } catch { return null; } };
+  gridEl.addEventListener("mousemove", e => {
+    const thumb = e.target.closest(".thumb");
+    if (!thumb) return;
+    const imgs = parseImgs(thumb);
+    if (!imgs || imgs.length < 2) return;
+    const rect = thumb.getBoundingClientRect();
+    let ratio = (e.clientX - rect.left) / rect.width;
+    ratio = Math.max(0, Math.min(0.9999, ratio));
+    const idx = Math.floor(ratio * imgs.length);
+    const im = thumb.querySelector("img");
+    if (im && im.getAttribute("src") !== imgs[idx]) im.setAttribute("src", imgs[idx]);
+    thumb.querySelectorAll(".scrub-dot").forEach((d, k) => d.classList.toggle("on", k === idx));
+  });
+  gridEl.addEventListener("mouseout", e => {
+    const thumb = e.target.closest(".thumb");
+    if (!thumb || thumb.contains(e.relatedTarget)) return;  // ушли за пределы карточки
+    const imgs = parseImgs(thumb);
+    if (!imgs) return;
+    const im = thumb.querySelector("img");
+    if (im && im.getAttribute("src") !== imgs[0]) im.setAttribute("src", imgs[0]);
+    thumb.querySelectorAll(".scrub-dot").forEach((d, k) => d.classList.toggle("on", k === 0));
+  });
+})();
+
 document.getElementById("cartBody").addEventListener("click", e => {
   if (e.target.dataset.inc) changeQty(e.target.dataset.inc, +1);
   if (e.target.dataset.dec) changeQty(e.target.dataset.dec, -1);
@@ -1943,7 +2026,12 @@ document.getElementById("productModal").addEventListener("click", e => {
   if (acc) {
     const k = acc.dataset.acc;
     state.modalAcc = state.modalAcc === k ? null : k;  // повторный клик — свернуть
-    renderProductModal(); return;
+    // перерисовываем ТОЛЬКО аккордеон, чтобы не пересобирать всю модалку
+    // (иначе сбрасывается scroll контейнера .pm-body и окно прыгает вверх)
+    const cur = document.getElementById("pmAcc");
+    if (cur) cur.outerHTML = renderAccordion(p);
+    else renderProductModal();
+    return;
   }
 
   const v = currentVariant();
