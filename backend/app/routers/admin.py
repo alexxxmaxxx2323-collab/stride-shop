@@ -13,6 +13,7 @@ from app.db import get_db
 from app.models import (
     Brand,
     Category,
+    Order,
     Product,
     ProductVariant,
     Review,
@@ -21,13 +22,19 @@ from app.models import (
     VariantStock,
 )
 from app.schemas.admin import (
+    AdminOrderOut,
+    OrderStatusUpdate,
     ProductCreate,
     ProductUpdate,
     ReviewCreate,
+    StatusOption,
     StockUpdate,
     VariantCreate,
 )
 from app.schemas.catalog import ProductOut, ReviewOut, VariantImageOut, VariantOut
+from app.schemas.order import OrderOut
+from app.services import order_status
+from app.services.bonus import reverse_order_bonuses
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -329,3 +336,63 @@ def delete_review(review_id: int, db: Session = Depends(get_db)) -> None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Review not found")
     db.delete(review)
     db.commit()
+
+
+# ---------- Заказы ----------
+def _admin_order_out(order: Order) -> AdminOrderOut:
+    """Заказ + человекочитаемые метки + доступные следующие статусы."""
+    return AdminOrderOut(
+        **OrderOut.model_validate(order).model_dump(),
+        status_label=order_status.label(order.status),
+        payment_label=order_status.PAYMENT_LABELS.get(
+            order.payment_status, order.payment_status
+        ),
+        allowed_next=[
+            StatusOption(code=c, label=order_status.label(c))
+            for c in order_status.allowed_transitions(order.status, order.delivery_type)
+        ],
+    )
+
+
+@router.get(
+    "/orders",
+    response_model=list[AdminOrderOut],
+    dependencies=[Depends(require_admin)],
+)
+def admin_list_orders(db: Session = Depends(get_db)) -> list[AdminOrderOut]:
+    orders = db.scalars(select(Order).order_by(Order.id.desc())).all()
+    return [_admin_order_out(o) for o in orders]
+
+
+@router.patch(
+    "/orders/{order_id}/status",
+    response_model=AdminOrderOut,
+    dependencies=[Depends(require_admin)],
+)
+def admin_set_order_status(
+    order_id: int, data: OrderStatusUpdate, db: Session = Depends(get_db)
+) -> AdminOrderOut:
+    order = db.get(Order, order_id)
+    if order is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Order not found")
+    new = data.status
+    if new not in order_status.STATUS_LABELS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Неизвестный статус: {new}")
+    if not order_status.can_transition(order.status, new, order.delivery_type):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Недопустимый переход: {order_status.label(order.status)} → "
+            f"{order_status.label(new)}",
+        )
+    # Вход в «Отменён»/«Возврат» — откатываем бонусы и помечаем оплату возвратом.
+    if new in order_status.REVERSAL_STATUSES and order.status not in order_status.REVERSAL_STATUSES:
+        reverse_order_bonuses(
+            db, order.user_id, order.id,
+            f"Возврат бонусов: заказ №{order.id} ({order_status.label(new)})",
+        )
+        if order.payment_status == "paid":
+            order.payment_status = "refunded"
+    order.status = new
+    db.commit()
+    db.refresh(order)
+    return _admin_order_out(order)

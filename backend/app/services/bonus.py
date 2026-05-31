@@ -65,6 +65,26 @@ def cashback_for_order(total_amount: int) -> int:
     return total_amount * CASHBACK_PCT // 100
 
 
+def reverse_order_bonuses(db: Session, user_id: int, order_id: int, reason: str) -> int:
+    """Откатить все бонусные операции заказа (при отмене/возврате).
+
+    Одной компенсирующей операцией обнуляем суммарный эффект заказа:
+    возвращаем списанные при оплате баллы и снимаем начисленный кэшбэк.
+    Не коммитит. Возвращает величину компенсации (для логов/тестов).
+    """
+    net = int(
+        db.scalar(
+            select(func.coalesce(func.sum(BonusTransaction.amount), 0)).where(
+                BonusTransaction.order_id == order_id
+            )
+        )
+        or 0
+    )
+    if net != 0:
+        credit_bonus(db, user_id, -net, reason, order_id=order_id)
+    return -net
+
+
 def apply_referral(db: Session, new_user: User, code: str | None) -> None:
     """Привязать новичка к пригласившему по коду и начислить бонусы обоим.
 

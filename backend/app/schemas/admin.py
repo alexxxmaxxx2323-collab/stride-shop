@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field, model_validator
 
+from app.schemas.order import OrderOut
+
 
 class ProductCreate(BaseModel):
     brand_id: int
@@ -59,3 +61,22 @@ class StockItem(BaseModel):
 
 class StockUpdate(BaseModel):
     items: list[StockItem]
+
+
+# ---------- Заказы в админке ----------
+class StatusOption(BaseModel):
+    code: str
+    label: str
+
+
+class OrderStatusUpdate(BaseModel):
+    status: str
+
+
+class AdminOrderOut(OrderOut):
+    """Заказ для админки: данные заказа + человекочитаемые метки и доступные
+    следующие статусы (для кнопок смены статуса)."""
+
+    status_label: str
+    payment_label: str
+    allowed_next: list[StatusOption]

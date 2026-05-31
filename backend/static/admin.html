@@ -44,6 +44,24 @@
   .badge { padding: 2px 8px; border-radius: 99px; background: #eef; font-size: 11px; color: #336; }
   .badge.out { background: #fee; color: #c00; }
 
+  /* ── Вкладки и заказы ── */
+  .admin-tabs { display: flex; gap: 4px; }
+  .atab { padding: 7px 16px; border: 0; border-radius: 8px; background: transparent; color: #cfcfcf; cursor: pointer; font-size: 14px; font-family: inherit; }
+  .atab:hover { background: rgba(255,255,255,.1); color: #fff; }
+  .atab.active { background: #fff; color: #16161a; font-weight: 600; }
+  .ostatus { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 12px; background: #eef; color: #335; white-space: nowrap; }
+  .ostatus.done { background: #e8f6e8; color: #1c7a1c; }
+  .ostatus.bad { background: #fdecef; color: #c01b39; }
+  .opay { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; background: #f3f3f5; color: #555; white-space: nowrap; }
+  .opay.paid { background: #e8f6e8; color: #1c7a1c; }
+  .opay.refunded { background: #fdecef; color: #c01b39; }
+  .status-btns { display: flex; flex-wrap: wrap; gap: 5px; }
+  .status-btns button { padding: 5px 10px; font-size: 12px; border: 1px solid #d7d7dd; border-radius: 6px; background: #fff; cursor: pointer; font-family: inherit; }
+  .status-btns button:hover { border-color: #16161a; background: #16161a; color: #fff; }
+  .status-btns button.term { border-color: #f0c2cc; color: #c01b39; }
+  .status-btns button.term:hover { background: #c01b39; border-color: #c01b39; color: #fff; }
+  .oitems { font-size: 12px; color: #777; }
+
   /* ── Редактор медиа (цвета/фото/размеры) ── */
   .media { margin-top: 18px; border-top: 1px solid #eee; padding-top: 16px; }
   .media > h3 { margin: 0 0 12px; font-size: 15px; }
@@ -84,6 +102,10 @@
 
 <header>
   <div class="logo">STRIDE · админка</div>
+  <nav id="adminTabs" class="admin-tabs" hidden>
+    <button class="atab active" data-view="products">Товары</button>
+    <button class="atab" data-view="orders">Заказы</button>
+  </nav>
   <div>
     <a href="/static/shop.html" class="btn ghost">← На сайт</a>
     <span id="userLabel" style="margin-left:8px"></span>
@@ -137,7 +159,9 @@ const state = {
   brands: [],
   categories: [],
   products: [],
+  orders: [],
   editingId: null,
+  view: "products",
 };
 
 const fmt = n => n.toLocaleString("ru-RU") + " ₽";
@@ -252,10 +276,71 @@ async function loadAll() {
     return;
   }
   document.getElementById("userLabel").textContent = state.user.email + " · admin";
+  document.getElementById("adminTabs").hidden = false;
   state.brands = await api("/brands");
   state.categories = await api("/categories");
   state.products = await fetchAllProducts();
-  renderTable();
+  renderView();
+}
+
+function renderView() {
+  document.querySelectorAll(".atab").forEach(b => b.classList.toggle("active", b.dataset.view === state.view));
+  if (state.view === "orders") renderOrders();
+  else renderTable();
+}
+
+document.getElementById("adminTabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-view]");
+  if (!b) return;
+  state.view = b.dataset.view;
+  renderView();
+});
+
+const ORDER_DELIVERY = { courier: "курьер", pickup: "самовывоз" };
+
+async function renderOrders() {
+  const content = document.getElementById("content");
+  content.innerHTML = `<div class="toolbar"><h1>Заказы</h1></div><div class="oitems">Загрузка…</div>`;
+  try {
+    state.orders = await api("/admin/orders");
+  } catch (e) {
+    content.innerHTML = `<div class="gate"><h2>Не удалось загрузить заказы</h2><p style="color:#888">${humanizeError(e.body && e.body.detail)}</p></div>`;
+    return;
+  }
+  const rows = state.orders.map(o => {
+    const itemsTxt = o.items.map(i => `${i.product_name} (р.${i.size}×${i.quantity})`).join(", ");
+    const termCodes = new Set(["cancelled", "returned", "delivery_failed"]);
+    const btns = o.allowed_next.map(s =>
+      `<button data-oid="${o.id}" data-st="${s.code}" class="${termCodes.has(s.code) ? "term" : ""}">${s.label}</button>`).join("");
+    return `
+      <tr>
+        <td><strong>№${o.id}</strong><br><span style="color:#888;font-size:11px">${new Date(o.created_at).toLocaleDateString("ru-RU")}</span></td>
+        <td>${escapeHtml(o.delivery_name)}<br><span style="color:#888;font-size:12px">${escapeHtml(o.delivery_phone)}</span></td>
+        <td style="font-size:12px">${ORDER_DELIVERY[o.delivery_type] || o.delivery_type}<br><span style="color:#888">${escapeHtml(o.delivery_address)}</span></td>
+        <td>${fmt(o.total_amount)}<br><span class="opay ${o.payment_status === "paid" ? "paid" : o.payment_status === "refunded" ? "refunded" : ""}">${escapeHtml(o.payment_label)}</span></td>
+        <td><span class="ostatus ${o.status === "delivered" ? "done" : termCodes.has(o.status) ? "bad" : ""}">${escapeHtml(o.status_label)}</span></td>
+        <td><div class="status-btns">${btns || '<span style="color:#bbb;font-size:12px">—</span>'}</div></td>
+      </tr>
+      <tr><td colspan="6" class="oitems" style="padding-top:0">${escapeHtml(itemsTxt)}</td></tr>`;
+  }).join("");
+  content.innerHTML = `
+    <div class="toolbar"><h1>Заказы · ${state.orders.length}</h1></div>
+    <table>
+      <thead><tr><th>Заказ</th><th>Клиент</th><th>Доставка</th><th>Сумма / оплата</th><th>Статус</th><th>Сменить статус</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  content.querySelectorAll("[data-oid]").forEach(b =>
+    b.onclick = () => changeOrderStatus(+b.dataset.oid, b.dataset.st));
+}
+
+async function changeOrderStatus(orderId, newStatus) {
+  try {
+    await api(`/admin/orders/${orderId}/status`, { method: "PATCH", body: JSON.stringify({ status: newStatus }) });
+    toast("Статус обновлён");
+    renderOrders();
+  } catch (e) {
+    toast(humanizeError(e.body && e.body.detail) || "Не удалось сменить статус", true);
+  }
 }
 
 function renderTable() {

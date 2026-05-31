@@ -58,13 +58,10 @@ def mock_pay(
 
     method = data.method if data.method in ("sbp", "card", "cod") else "card"
     order.payment_method = method
-    if method == "cod":
-        # Оплата при получении — деньги берём на месте, заказ ждёт выдачи.
-        order.payment_status = "cod"
-        order.status = "pending"
-    else:
-        order.payment_status = "paid"
-        order.status = "paid"
+    # Оплата и исполнение — независимые оси: здесь меняем только статус ОПЛАТЫ.
+    # Статус исполнения (status) остаётся «В обработке» и ведётся отдельно
+    # через машину состояний (склад/доставка), см. app/services/order_status.py.
+    order.payment_status = "cod" if method == "cod" else "paid"
     db.commit()
 
     # Кэшбэк — только после успешной онлайн-оплаты (не для «при получении»).

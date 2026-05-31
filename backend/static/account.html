@@ -132,6 +132,8 @@
   .order-line { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
   .order-line img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; background: var(--photo); }
   .st { display: inline-block; font-size: 11px; padding: 3px 9px; border-radius: 99px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+  .st.ok { background: rgba(204,255,0,.14); color: var(--accent); border-color: transparent; }
+  .st.bad { background: rgba(255,46,81,.15); color: var(--sale); border-color: transparent; }
 
   .tx { display: flex; justify-content: space-between; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--line); }
   .tx:last-child { border-bottom: 0; }
@@ -276,7 +278,22 @@ function maskPhone(el) {
   el.addEventListener("input", fmt);
   el.addEventListener("focus", () => { if (!el.value) el.value = "+7 "; });
 }
-const ORDER_STATUS = { pending: "В обработке", paid: "Оплачен", shipped: "Отправлен", delivered: "Доставлен", cancelled: "Отменён" };
+// Статусы исполнения заказа (как у Ozon/WB/Lamoda) и статусы оплаты — две оси.
+const ORDER_STATUS = {
+  pending: "В обработке", assembling: "Собирается", shipped: "Передан в доставку",
+  in_transit: "В пути", ready_for_pickup: "Готов к выдаче", delivered: "Доставлен",
+  delivery_failed: "Ошибка доставки", cancelled: "Отменён", returned: "Возврат",
+};
+const PAYMENT_STATUS = {
+  awaiting: "Ожидает оплаты", paid: "Оплачен", cod: "Оплата при получении", refunded: "Возврат оформлен",
+};
+// Покупатель может отменить, пока заказ не передан в доставку.
+const CANCELLABLE = new Set(["pending", "assembling"]);
+function statusClass(s) {
+  if (s === "delivered") return "ok";
+  if (s === "cancelled" || s === "delivery_failed" || s === "returned") return "bad";
+  return "";
+}
 
 // ---------- boot ----------
 async function boot() {
@@ -369,15 +386,24 @@ const SECTIONS = {
       ${list.map(o => `
         <div class="order">
           <div class="order-head"><span class="id">Заказ №${o.id}</span><span class="sum">${fmt(o.total_amount)}</span></div>
-          <div class="order-meta"><span class="st">${ORDER_STATUS[o.status] || o.status}</span> · ${dtt(o.created_at)} · ${o.delivery_type === "pickup" ? "самовывоз" : "курьер"}</div>
+          <div class="order-meta">
+            <span class="st ${statusClass(o.status)}">${ORDER_STATUS[o.status] || o.status}</span>
+            <span class="st">${PAYMENT_STATUS[o.payment_status] || o.payment_status}</span>
+            · ${dtt(o.created_at)} · ${o.delivery_type === "pickup" ? "самовывоз" : "курьер"}
+          </div>
           ${o.items.map(i => `
             <div class="order-line">
               <img src="${esc(i.product_image)}" alt="">
               <div style="flex:1"><div>${esc(i.product_name)}</div><div class="muted" style="font-size:13px">${esc(i.color_name)} · р. ${i.size} · ${i.quantity} шт.</div></div>
               <div>${fmt(i.subtotal)}</div>
             </div>`).join("")}
+          ${CANCELLABLE.has(o.status)
+            ? `<div style="margin-top:12px"><button class="btn sm danger" data-cancel="${o.id}">Отменить заказ</button></div>`
+            : ""}
         </div>`).join("")}
       </div>`;
+    document.getElementById("content").querySelectorAll("[data-cancel]").forEach(b =>
+      b.onclick = () => cancelOrder(+b.dataset.cancel));
   },
 
   async bonuses() {
@@ -643,6 +669,15 @@ async function changePassword() {
     toast("Пароль изменён");
     document.getElementById("cwCur").value = document.getElementById("cwNew").value = document.getElementById("cwNew2").value = "";
   } catch (e) { err.textContent = errMsg(e, "Не удалось изменить пароль"); }
+}
+
+async function cancelOrder(id) {
+  if (!confirm(`Отменить заказ №${id}? Списанные баллы вернутся, начисленный кэшбэк будет снят.`)) return;
+  try {
+    await api(`/orders/${id}/cancel`, { method: "POST" });
+    toast("Заказ отменён");
+    SECTIONS.orders();
+  } catch (e) { toast(errMsg(e, "Не удалось отменить заказ"), true); }
 }
 
 boot();

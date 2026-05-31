@@ -9,8 +9,9 @@ from app.models import Cart, Order, OrderItem, User
 from app.notifications import order_summary, send_message
 from app.routers.cart import get_stock_qty
 from app.schemas.order import OrderCreate, OrderCreatedOut, OrderOut
-from app.services.bonus import bonus_balance, credit_bonus
+from app.services.bonus import bonus_balance, credit_bonus, reverse_order_bonuses
 from app.services.geocode import GeocodeUnavailable, address_exists
+from app.services.order_status import CUSTOMER_CANCELLABLE
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -141,4 +142,30 @@ def get_order(
     order = db.get(Order, order_id)
     if order is None or order.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Order not found")
+    return order
+
+
+@router.post("/{order_id}/cancel", response_model=OrderOut)
+def cancel_order(
+    order_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Order:
+    """Отмена заказа покупателем — пока он не передан в доставку.
+    Возвращаем списанные баллы, снимаем кэшбэк, помечаем оплату возвращённой."""
+    order = db.get(Order, order_id)
+    if order is None or order.user_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Order not found")
+    if order.status not in CUSTOMER_CANCELLABLE:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Этот заказ уже нельзя отменить — он передан в доставку. "
+            "Оформите возврат после получения.",
+        )
+    reverse_order_bonuses(db, user.id, order.id, f"Возврат бонусов за отмену заказа №{order.id}")
+    if order.payment_status == "paid":
+        order.payment_status = "refunded"
+    order.status = "cancelled"
+    db.commit()
+    db.refresh(order)
     return order
