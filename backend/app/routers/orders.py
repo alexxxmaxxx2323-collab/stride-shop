@@ -11,6 +11,7 @@ from app.routers.cart import get_stock_qty
 from app.schemas.order import OrderCreate, OrderCreatedOut, OrderOut
 from app.services.bonus import bonus_balance, credit_bonus, reverse_order_bonuses
 from app.services.geocode import GeocodeUnavailable, address_exists
+from app.services.order_notify import notify_order_placed, notify_status_change
 from app.services.order_status import CUSTOMER_CANCELLABLE
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -103,15 +104,13 @@ def create_order(
         credit_bonus(db, user.id, -spend, f"Оплата баллами заказа №{order.id}", order_id=order.id)
         db.commit()
 
-    # Уведомления шлём фоном: ответ не ждёт сети, а сбой Telegram не ломает заказ.
-    # Текст собираем сейчас, пока сессия жива (в фоне ORM-объект может отвязаться).
-    summary = order_summary(order)
-    if user.tg_id:
-        background_tasks.add_task(send_message, user.tg_id, summary)
+    # Покупателю — подтверждение во все каналы (in-app в ленту ЛК + TG + e-mail).
+    notify_order_placed(background_tasks, db, order)
+    # Админу — отдельная TG-сводка о новом заказе (in-app ему не нужен).
     if settings.admin_tg_id:
         admin_text = (
             f"🆕 <b>Новый заказ №{order.id}</b>\n"
-            f"{order.delivery_name} · {order.delivery_phone}\n\n" + summary
+            f"{order.delivery_name} · {order.delivery_phone}\n\n" + order_summary(order)
         )
         background_tasks.add_task(send_message, settings.admin_tg_id, admin_text)
 
@@ -148,6 +147,7 @@ def get_order(
 @router.post("/{order_id}/cancel", response_model=OrderOut)
 def cancel_order(
     order_id: int,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Order:
@@ -168,4 +168,6 @@ def cancel_order(
     order.status = "cancelled"
     db.commit()
     db.refresh(order)
+    # Подтверждение отмены покупателю (фоном, по TG и/или e-mail).
+    notify_status_change(background_tasks, db, order)
     return order

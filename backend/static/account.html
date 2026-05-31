@@ -110,6 +110,29 @@
   .badge.ok { background: rgba(204,255,0,.14); color: var(--accent); }
   .badge.warn { background: rgba(255,46,81,.15); color: var(--sale); }
 
+  /* NAV NOTIFICATION BADGE — красный кружок с белым числом */
+  .nav-badge {
+    margin-left: auto; min-width: 19px; height: 19px; padding: 0 5px;
+    border-radius: 99px; background: var(--sale); color: #fff;
+    font-size: 11px; font-weight: 700; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  /* NOTIFICATION FEED */
+  .notif { display: flex; gap: 12px; align-items: flex-start; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .notif:last-child { border-bottom: 0; }
+  .notif-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: transparent; }
+  .notif.unread .notif-dot { background: var(--sale); }
+  .notif.unread .notif-title { color: var(--text); }
+  .notif-thumb { flex: none; width: 52px; height: 52px; object-fit: cover; border-radius: 10px; background: var(--photo); }
+  .notif-title { font-weight: 600; font-size: 14px; }
+  .notif-body { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .notif-detail { color: var(--text); font-size: 13px; margin-top: 6px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; display: inline-block; }
+  .notif-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; }
+  .notif .lnk { background: none; border: 0; padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer; text-decoration: none; }
+  .notif .lnk:hover { text-decoration: underline; }
+  .notif-when { color: var(--muted-2); font-size: 12px; margin-top: 6px; }
+
   /* FORMS */
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
@@ -217,7 +240,7 @@
       <button data-sec="offers"><span class="ic"><svg viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 2.8 12V4a1 1 0 0 1 1-1H12a2 2 0 0 1 1.4.6l7.2 7.2a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg></span> Предложения</button>
       <button data-sec="wishlist"><span class="ic"><svg viewBox="0 0 24 24"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 0 0-7.1 7.1l1.7 1.7L12 21.5l7.1-7.1 1.7-1.7a5 5 0 0 0 0-7.1z"/></svg></span> Избранное</button>
       <button data-sec="addresses"><span class="ic"><svg viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></span> Адреса</button>
-      <button data-sec="notifications"><span class="ic"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span> Уведомления</button>
+      <button data-sec="notifications"><span class="ic"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span> Уведомления <span class="nav-badge" id="navNotifBadge" hidden></span></button>
       <button data-sec="referral"><span class="ic"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Пригласить друга</button>
       <button data-sec="profile"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></span> Профиль</button>
       <div class="nav-div"></div>
@@ -309,6 +332,24 @@ async function boot() {
   document.getElementById("hUser").textContent = u.email || u.first_name || "Вы";
   const sec = (location.hash || "#overview").slice(1);
   setSection(SECTIONS[sec] ? sec : "overview");
+  refreshNotifBadge();
+  // Подтягиваем счётчик периодически — новые статусы могут прийти, пока вкладка открыта.
+  setInterval(refreshNotifBadge, 30000);
+}
+
+// «Красный кружок» с числом непрочитанных на пункте «Уведомления».
+async function refreshNotifBadge() {
+  const b = document.getElementById("navNotifBadge");
+  if (!b) return;
+  try {
+    const { count } = await api("/me/notifications/unread-count");
+    // Если пользователь сейчас в «Уведомлениях» и пришло новое — подтягиваем ленту
+    // (иначе свежие статусы не появлялись бы, пока он сидит на странице).
+    const onNotif = (location.hash || "").slice(1) === "notifications";
+    if (onNotif && count > 0) { SECTIONS.notifications(); return; }
+    b.textContent = count > 99 ? "99+" : count;
+    b.hidden = !count;
+  } catch { /* молча: бейдж не критичен */ }
 }
 
 document.getElementById("logoutBtn").onclick = () => {
@@ -493,9 +534,32 @@ const SECTIONS = {
 
   async notifications() {
     const u = state.user;
+    const list = await api("/me/notifications");
+    const feed = list.length
+      ? list.map(n => `
+          <div class="notif ${n.is_read ? "" : "unread"}">
+            <span class="notif-dot"></span>
+            ${n.image_url ? `<img class="notif-thumb" src="${esc(n.image_url)}" alt="">` : ""}
+            <div class="notif-main" style="flex:1">
+              <div class="notif-title">${esc(n.title)}</div>
+              ${n.body ? `<div class="notif-body">${esc(n.body)}</div>` : ""}
+              ${n.detail ? `<div class="notif-detail">🛍 ${esc(n.detail)}</div>` : ""}
+              <div class="notif-actions">
+                ${n.order_id ? `<button class="lnk" onclick="setSection('orders')">К заказу</button>` : ""}
+                ${n.product_slug ? `<a class="lnk" href="/static/shop.html?product=${encodeURIComponent(n.product_slug)}">Открыть товар →</a>` : ""}
+              </div>
+              <div class="notif-when">${dtt(n.created_at)}</div>
+            </div>
+          </div>`).join("")
+      : '<div class="empty">Уведомлений пока нет.<br>Здесь появятся статусы ваших заказов.</div>';
     document.getElementById("content").innerHTML = `
       <div class="card">
-        <div class="sec-h">Уведомления</div><div class="sec-sub">Как с вами связываться</div>
+        <div class="sec-h">Уведомления</div><div class="sec-sub">Статусы заказов и оплаты</div>
+        ${feed}
+      </div>
+      <div class="card">
+        <div class="sec-h" style="font-size:17px">Каналы уведомлений</div>
+        <div class="sec-sub">Как ещё с вами связываться — те же события дублируются сюда</div>
         <div class="switch-row">
           <div><div class="sl">E-mail — заказы и скидки</div><div class="sd">Статусы заказов и персональные акции на почту</div></div>
           <label class="switch"><input type="checkbox" id="swEmail" ${u.marketing_consent ? "checked" : ""}><span class="track"></span></label>
@@ -511,6 +575,11 @@ const SECTIONS = {
     };
     document.getElementById("swEmail").onchange = e => save({ marketing_consent: e.target.checked }, "Настройки сохранены");
     document.getElementById("swSms").onchange = e => save({ sms_consent: e.target.checked }, "Настройки сохранены");
+    // Открыли ленту → помечаем всё прочитанным и гасим «красный кружок».
+    if (list.some(n => !n.is_read)) {
+      try { await api("/me/notifications/read-all", { method: "POST" }); } catch {}
+    }
+    refreshNotifBadge();
   },
 
   async referral() {

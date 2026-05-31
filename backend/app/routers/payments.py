@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -7,6 +7,7 @@ from app.auth import get_current_user
 from app.db import get_db
 from app.models import BonusTransaction, Order, User
 from app.services.bonus import cashback_for_order, credit_bonus
+from app.services.order_notify import notify_payment_received
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
@@ -46,6 +47,7 @@ class MockPayOut(BaseModel):
 @router.post("/mock", response_model=MockPayOut)
 def mock_pay(
     data: MockPayIn,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> MockPayOut:
@@ -66,6 +68,10 @@ def mock_pay(
 
     # Кэшбэк — только после успешной онлайн-оплаты (не для «при получении»).
     _credit_cashback_once(db, order)
+
+    # Уведомление об успешной онлайн-оплате (для «при получении» оплаты ещё нет).
+    if order.payment_status == "paid":
+        notify_payment_received(background_tasks, db, order)
 
     return MockPayOut(
         success=True, order_id=order.id,

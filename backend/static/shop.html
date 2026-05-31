@@ -295,6 +295,8 @@
   .icon-btn:hover { background: #2a2a31; border-color: var(--line-strong); }
   .icon-btn svg { stroke: var(--text); }
   .badge { background: var(--accent); color: #000; font-weight: 800; box-shadow: 0 0 0 2px var(--bg); }
+  /* Уведомления — всегда красный кружок с белыми цифрами (не лаймовый, как корзина). */
+  .notif-badge { background: #f5163f; color: #fff; }
   .tab { color: var(--muted); border: 1px solid transparent; transition: all .15s; }
   .tab:hover { background: var(--surface-2); color: var(--text); }
   .tab.active { background: #fff; color: #000; font-weight: 600; }
@@ -733,6 +735,7 @@
       <button class="btn" id="logoutBtn" hidden>Выйти</button>
       <button class="icon-btn" id="accountBtn" title="Личный кабинет" hidden>
         <svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM3 21a9 9 0 0 1 18 0"/></svg>
+        <span class="badge notif-badge" id="notifBadge" hidden>0</span>
       </button>
       <button class="icon-btn" id="favBtn" title="Избранное">
         <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -1029,6 +1032,26 @@ function renderTopbar() {
     document.getElementById("userLabel").textContent = state.user.email || (state.user.first_name || "Вы");
   }
   renderSizeChip();
+  refreshNotifBadge();
+}
+
+// Красный кружок с числом непрочитанных уведомлений на иконке аккаунта.
+let _notifTimer = null;
+async function refreshNotifBadge() {
+  const b = document.getElementById("notifBadge");
+  if (!b) return;
+  if (!state.user) {
+    b.hidden = true;
+    if (_notifTimer) { clearInterval(_notifTimer); _notifTimer = null; }
+    return;
+  }
+  try {
+    const { count } = await api("/me/notifications/unread-count");
+    b.textContent = count > 99 ? "99+" : count;
+    b.hidden = !count;
+  } catch { /* молча: бейдж не критичен */ }
+  // Лёгкий опрос, пока пользователь на сайте (новые статусы могут прийти в фоне).
+  if (!_notifTimer) _notifTimer = setInterval(refreshNotifBadge, 30000);
 }
 
 // Чип «мой размер» в каталоге — только если у пользователя сохранён размер.
@@ -1236,6 +1259,17 @@ function closeProductModal() {
   document.getElementById("productModal").classList.remove("show");
   document.body.style.overflow = "";
   state.modalProduct = null;
+}
+
+// Открыть карточку по slug (для ссылок из уведомлений: shop.html?product=<slug>).
+async function openProductBySlug(slug) {
+  let p = state.products.find(x => x.slug === slug);
+  if (!p) {
+    try { p = await api(`/products/slug/${encodeURIComponent(slug)}`); }
+    catch { toast("Товар не найден", true); return; }
+    if (p) state.products.push(p);  // чтобы openProductModal нашёл его по id
+  }
+  if (p) openProductModal(p.id);
 }
 
 function currentVariant() {
@@ -2137,7 +2171,11 @@ document.getElementById("logoutBtn").onclick = () => {
   toast("Вы вышли");
 };
 document.getElementById("cartBtn").onclick = openCart;
-document.getElementById("accountBtn").onclick = () => location.href = "/static/account.html";
+document.getElementById("accountBtn").onclick = () => {
+  // Есть непрочитанные (виден красный кружок) → сразу в раздел «Уведомления».
+  const hasUnread = !document.getElementById("notifBadge").hidden;
+  location.href = "/static/account.html" + (hasUnread ? "#notifications" : "");
+};
 document.getElementById("mySizeChip").onclick = () => {
   const sz = state.user && state.user.preferred_size;
   if (!sz) return;
@@ -2362,6 +2400,11 @@ document.addEventListener("keydown", e => {
   renderGrid(true);
   if (new URLSearchParams(location.search).get("orders") === "1") {
     openOrders();
+    history.replaceState({}, "", location.pathname);
+  }
+  const wantSlug = new URLSearchParams(location.search).get("product");
+  if (wantSlug) {
+    openProductBySlug(wantSlug);
     history.replaceState({}, "", location.pathname);
   }
 })();

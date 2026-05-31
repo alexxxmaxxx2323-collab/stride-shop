@@ -2,7 +2,7 @@ import io
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -35,6 +35,7 @@ from app.schemas.catalog import ProductOut, ReviewOut, VariantImageOut, VariantO
 from app.schemas.order import OrderOut
 from app.services import order_status
 from app.services.bonus import reverse_order_bonuses
+from app.services.order_notify import notify_status_change
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -370,7 +371,10 @@ def admin_list_orders(db: Session = Depends(get_db)) -> list[AdminOrderOut]:
     dependencies=[Depends(require_admin)],
 )
 def admin_set_order_status(
-    order_id: int, data: OrderStatusUpdate, db: Session = Depends(get_db)
+    order_id: int,
+    data: OrderStatusUpdate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
 ) -> AdminOrderOut:
     order = db.get(Order, order_id)
     if order is None:
@@ -395,4 +399,6 @@ def admin_set_order_status(
     order.status = new
     db.commit()
     db.refresh(order)
+    # Покупателю — уведомление о новом статусе (фоном, по TG и/или e-mail).
+    notify_status_change(background_tasks, db, order)
     return _admin_order_out(order)

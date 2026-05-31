@@ -12,6 +12,7 @@ from app.models import (
     Address,
     BonusTransaction,
     Favorite,
+    Notification,
     Order,
     OrderItem,
     Product,
@@ -22,9 +23,11 @@ from app.schemas.account import (
     AddressIn,
     AddressOut,
     BonusesOut,
+    NotificationOut,
     OffersOut,
     ReferralOut,
     SummaryOut,
+    UnreadCountOut,
 )
 from app.schemas.catalog import ProductOut
 from app.services.bonus import (
@@ -166,6 +169,50 @@ def offers(user: User = Depends(get_current_user), db: Session = Depends(get_db)
         reason=reason,
         products=[ProductOut.model_validate(p) for p in chosen],
     )
+
+
+# ---------- Уведомления (лента ЛК) ----------
+@router.get("/notifications", response_model=list[NotificationOut])
+def list_notifications(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> list[Notification]:
+    """Последние уведомления покупателя (новые сверху)."""
+    return list(
+        db.scalars(
+            select(Notification)
+            .where(Notification.user_id == user.id)
+            .order_by(Notification.id.desc())
+            .limit(50)
+        ).all()
+    )
+
+
+@router.get("/notifications/unread-count", response_model=UnreadCountOut)
+def unread_count(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> UnreadCountOut:
+    """Сколько непрочитанных — для «красного кружка» с числом."""
+    n = db.scalar(
+        select(func.count(Notification.id)).where(
+            Notification.user_id == user.id, Notification.is_read.is_(False)
+        )
+    ) or 0
+    return UnreadCountOut(count=int(n))
+
+
+@router.post("/notifications/read-all", response_model=UnreadCountOut)
+def mark_all_read(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> UnreadCountOut:
+    """Пометить все уведомления прочитанными (вызывается при открытии раздела)."""
+    for n in db.scalars(
+        select(Notification).where(
+            Notification.user_id == user.id, Notification.is_read.is_(False)
+        )
+    ).all():
+        n.is_read = True
+    db.commit()
+    return UnreadCountOut(count=0)
 
 
 # ---------- Адресная книга ----------

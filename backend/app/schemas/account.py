@@ -79,3 +79,22 @@ class SummaryOut(BaseModel):
 class OffersOut(BaseModel):
     reason: str
     products: list[ProductOut]
+
+
+# ---------- Уведомления (лента ЛК) ----------
+class NotificationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    body: str
+    detail: str | None
+    image_url: str | None
+    product_slug: str | None
+    order_id: int | None
+    is_read: bool
+    created_at: datetime
+
+
+class UnreadCountOut(BaseModel):
+    count: int

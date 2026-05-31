@@ -15,7 +15,7 @@ from app.config import settings
 _API = "https://api.telegram.org/bot{token}/sendMessage"
 
 
-def _money(n: int) -> str:
+def money(n: int) -> str:
     return f"{n:,}".replace(",", " ") + " ₽"
 
 
@@ -37,16 +37,31 @@ def send_message(chat_id: int, text: str) -> None:
         logging.warning("Telegram-уведомление не отправлено (chat %s): %s", chat_id, e)
 
 
+def order_event_text(
+    order_id: int, title: str, note: str = "",
+    detail: str | None = None, card_url: str | None = None,
+) -> str:
+    """Уведомление о событии заказа (смена статуса/оплата), HTML для Telegram."""
+    lines = [f"📦 <b>Заказ №{order_id}: {title}</b>"]
+    if note:
+        lines += ["", note]
+    if detail:
+        lines += ["", f"🛍 {detail}"]
+    if card_url:
+        lines += ["", f'<a href="{card_url}">Открыть карточку товара →</a>']
+    return "\n".join(lines)
+
+
 def order_summary(order) -> str:
     """Текст сводки заказа для покупателя (HTML)."""
     lines = [f"✅ <b>Заказ №{order.id} оформлен</b>", ""]
     for it in order.items:
         lines.append(
-            f"• {it.product_name} ({it.color_name}, р. {it.size}) ×{it.quantity} — {_money(it.subtotal)}"
+            f"• {it.product_name} ({it.color_name}, р. {it.size}) ×{it.quantity} — {money(it.subtotal)}"
         )
     lines += [
         "",
-        f"<b>Итого: {_money(order.total_amount)}</b>",
+        f"<b>Итого: {money(order.total_amount)}</b>",
         f"📦 {order.delivery_address}",
         "",
         "Мы свяжемся с вами для подтверждения. Спасибо за заказ! 🙌",

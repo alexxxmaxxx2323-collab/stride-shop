@@ -10,6 +10,7 @@ from app.models.catalog import (
     VariantStock,
 )
 from app.models.favorites import Favorite
+from app.models.notification import Notification
 from app.models.order import Cart, CartItem, Order, OrderItem
 from app.models.user import User
 
@@ -21,6 +22,7 @@ __all__ = [
     "CartItem",
     "Category",
     "Favorite",
+    "Notification",
     "Order",
     "OrderItem",
     "Product",
