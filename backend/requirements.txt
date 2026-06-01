@@ -11,3 +11,4 @@ email-validator==2.2.0
 aiogram>=3.4
 python-multipart==0.0.29
 Pillow==12.2.0
+yookassa==3.10.1

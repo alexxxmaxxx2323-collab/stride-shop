@@ -62,6 +62,8 @@ class Order(Base):
     pickup_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     # Способ оплаты: sbp | card | cod (при получении). Заполняется при оплате.
     payment_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # id платежа в ЮKassa (для сверки статуса и сопоставления webhook'а). Пусто — оплата не создавалась.
+    yookassa_payment_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

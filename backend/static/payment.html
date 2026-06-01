@@ -56,6 +56,11 @@
   .btn { flex: 1; text-align: center; padding: 10px; background: #f1f1f1; border: 0; border-radius: 8px; text-decoration: none; color: inherit; font-size: 14px; }
   .btn.primary { background: #16161a; color: #fff; }
   .error { color: #f5163f; font-size: 13px; margin-top: 8px; text-align: center; }
+  #ykWidget { min-height: 200px; margin-bottom: 8px; }
+  .checking { text-align: center; padding: 30px 20px; }
+  .checking .spin { width: 36px; height: 36px; margin: 0 auto 16px; border: 3px solid #eee; border-top-color: #16161a; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .pm-sub { font-size: 12px; color: #888; }
 </style>
 </head>
 <body>
@@ -64,8 +69,12 @@
 <script>
 const params = new URLSearchParams(location.search);
 const orderId = parseInt(params.get("order"), 10);
+const returnedFromWidget = params.get("yk") === "1";  // вернулись со встроенного виджета
 const token = localStorage.getItem("stride_token");
 const fmt = n => n.toLocaleString("ru-RU") + " ₽";
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+let ykEnabled = false;  // настроена ли реальная ЮKassa (иначе — mock-заглушка)
 
 async function api(path, opts = {}) {
   const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
@@ -95,19 +104,36 @@ async function init() {
     renderSuccess(order);
     return;
   }
+
+  try {
+    const cfg = await api("/payments/config");
+    ykEnabled = !!cfg.yookassa_enabled;
+  } catch (e) { ykEnabled = false; }
+
+  // Вернулись из виджета ЮKassa — статус ещё мог не дойти (webhook). Сверяем на сервере.
+  if (returnedFromWidget && ykEnabled) {
+    pollPayment(order);
+    return;
+  }
   renderForm(order);
 }
 
-let payMethod = "card";
-const PAY_METHODS = [
+// Способы оплаты зависят от режима: реальная ЮKassa (онлайн-виджет + при получении)
+// или mock-заглушка (карта/СБП/при получении).
+let payMethod;
+const PAY_METHODS_YK = [
+  { key: "online", label: `<img class="pm-logo" src="/static/img/mir.svg" alt="Мир"><img class="pm-logo" src="/static/img/sbp.svg" alt="СБП"><span>Онлайн-оплата</span>` },
+  { key: "cod", label: `<span class="pm-cod-ico">₽</span><span>При получении</span>` },
+];
+const PAY_METHODS_MOCK = [
   { key: "sbp", label: `<img class="pm-logo" src="/static/img/sbp.svg" alt="СБП"><span>Оплата по QR</span>` },
   { key: "card", label: `<img class="pm-logo" src="/static/img/mir.svg" alt="Мир"><img class="pm-logo" src="/static/img/visa.svg" alt="Visa"><img class="pm-logo" src="/static/img/mastercard.svg" alt="Mastercard"><span>Картой</span>` },
   { key: "cod", label: `<span class="pm-cod-ico">₽</span><span>При получении</span>` },
 ];
 
-function renderForm(order) {
+function orderCard(order) {
   const isPickup = order.delivery_type === "pickup";
-  document.getElementById("wrap").innerHTML = `
+  return `
     <div class="card">
       <h1>Заказ #${order.id}</h1>
       ${order.items.map(i => `
@@ -124,16 +150,22 @@ function renderForm(order) {
         ${order.delivery_phone}<br>
         ${order.delivery_address}
       </div>
-    </div>
+    </div>`;
+}
 
+function renderForm(order) {
+  const methods = ykEnabled ? PAY_METHODS_YK : PAY_METHODS_MOCK;
+  payMethod = methods[0].key;
+  document.getElementById("wrap").innerHTML = `
+    ${orderCard(order)}
     <div class="card">
-      <div class="pay-head"><div class="logo">Оплата</div><span class="test-badge">ТЕСТОВЫЙ РЕЖИМ</span></div>
+      <div class="pay-head"><div class="logo">Оплата</div><span class="test-badge">${ykEnabled ? "ЮKASSA · ТЕСТ" : "ТЕСТОВЫЙ РЕЖИМ"}</span></div>
       <div class="pay-methods" id="payMethods">
-        ${PAY_METHODS.map(m => `<div class="pay-method ${m.key === payMethod ? "active" : ""}" data-method="${m.key}"><span class="pm-mlabel">${m.label}</span><span class="dot"></span></div>`).join("")}
+        ${methods.map(m => `<div class="pay-method ${m.key === payMethod ? "active" : ""}" data-method="${m.key}"><span class="pm-mlabel">${m.label}</span><span class="dot"></span></div>`).join("")}
       </div>
       <div id="methodBody"></div>
       <button class="pay-btn" id="payBtn"></button>
-      <div class="hint">Тестовая страница — реальные деньги не списываются.</div>
+      <div class="hint">${ykEnabled ? "Оплата через ЮKassa в тестовом режиме — реальные деньги не списываются." : "Тестовая страница — реальные деньги не списываются."}</div>
       <div class="error" id="payError"></div>
     </div>
   `;
@@ -151,7 +183,14 @@ function renderForm(order) {
 function renderMethodBody(order) {
   const body = document.getElementById("methodBody");
   const btn = document.getElementById("payBtn");
-  if (payMethod === "card") {
+  btn.style.display = "";
+  btn.disabled = false;
+  if (payMethod === "online") {
+    body.innerHTML = `
+      <div class="card-brands"><img src="/static/img/mir.svg" alt="Мир"><img src="/static/img/visa.svg" alt="Visa"><img src="/static/img/mastercard.svg" alt="Mastercard"><img src="/static/img/sbp.svg" alt="СБП"></div>
+      <div class="cod-note">Картой, через СБП или электронным кошельком — форму оплаты откроет ЮKassa.</div>`;
+    btn.textContent = `Перейти к оплате · ${fmt(order.total_amount)}`;
+  } else if (payMethod === "card") {
     body.innerHTML = `
       <div class="card-brands"><img src="/static/img/mir.svg" alt="Мир"><img src="/static/img/visa.svg" alt="Visa"><img src="/static/img/mastercard.svg" alt="Mastercard"></div>
       <div class="form-row"><label>Номер карты</label><input value="2200 0000 0000 0004" disabled></div>
@@ -170,19 +209,81 @@ function renderMethodBody(order) {
   }
 }
 
+let ykScriptPromise = null;
+function loadYkScript() {
+  if (window.YooMoneyCheckoutWidget) return Promise.resolve();
+  if (ykScriptPromise) return ykScriptPromise;
+  ykScriptPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://yookassa.ru/checkout-widget/v1/checkout-widget.js";
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("Не удалось загрузить виджет ЮKassa"));
+    document.head.appendChild(s);
+  });
+  return ykScriptPromise;
+}
+
 async function payOrder(order) {
   const btn = document.getElementById("payBtn");
+  const err = document.getElementById("payError");
+  err.textContent = "";
   btn.disabled = true;
   btn.textContent = "Обработка...";
   try {
-    await api("/payments/mock", { method: "POST", body: JSON.stringify({ order_id: order.id, method: payMethod }) });
-    const updated = await api("/orders/" + order.id);
-    renderSuccess(updated);
+    if (payMethod === "online") {
+      // Реальная ЮKassa: создаём платёж и монтируем встроенный виджет.
+      const { confirmation_token } = await api("/payments/yookassa/create", {
+        method: "POST", body: JSON.stringify({ order_id: order.id }),
+      });
+      await loadYkScript();
+      document.getElementById("methodBody").innerHTML = `<div id="ykWidget"></div>`;
+      btn.style.display = "none";
+      const checkout = new window.YooMoneyCheckoutWidget({
+        confirmation_token,
+        error_callback(e) { err.textContent = "Ошибка виджета оплаты"; console.error(e); },
+      });
+      // По завершении оплаты виджет перенаправит на return_url (…&yk=1) — там сверим статус.
+      checkout.render("ykWidget");
+    } else {
+      // Оплата при получении (cod) или mock-заглушка для card/sbp.
+      await api("/payments/mock", { method: "POST", body: JSON.stringify({ order_id: order.id, method: payMethod }) });
+      const updated = await api("/orders/" + order.id);
+      renderSuccess(updated);
+    }
   } catch (e) {
-    document.getElementById("payError").textContent = (e.body && e.body.detail) || "Ошибка";
+    err.textContent = (e.body && e.body.detail) || "Ошибка";
     btn.disabled = false;
     renderMethodBody(order);
   }
+}
+
+async function pollPayment(order) {
+  document.getElementById("wrap").innerHTML = `
+    ${orderCard(order)}
+    <div class="card"><div class="checking"><div class="spin"></div>
+      <h2 style="margin:0 0 6px;font-size:18px">Проверяем оплату…</h2>
+      <p style="color:#888;margin:0">Заказ #${order.id} · ${fmt(order.total_amount)}</p>
+    </div></div>`;
+  for (let i = 0; i < 10; i++) {
+    try {
+      const res = await api("/payments/yookassa/check", { method: "POST", body: JSON.stringify({ order_id: order.id }) });
+      if (res.payment_status === "paid") {
+        renderSuccess(await api("/orders/" + order.id));
+        return;
+      }
+    } catch (e) { /* временная ошибка — попробуем ещё раз */ }
+    await sleep(1500);
+  }
+  // Оплата не подтвердилась за отведённое время — даём вручную перепроверить.
+  document.getElementById("wrap").innerHTML = `
+    ${orderCard(order)}
+    <div class="card"><div class="success">
+      <p>Оплата ещё не подтверждена. Если вы только что оплатили — подождите минуту и проверьте снова.</p>
+      <div class="btn-row">
+        <button class="btn primary" onclick="location.reload()">Проверить ещё раз</button>
+        <a class="btn" href="/static/payment.html?order=${order.id}">К оплате</a>
+      </div>
+    </div></div>`;
 }
 
 function renderSuccess(order) {
