@@ -63,6 +63,7 @@
   .layout { display: grid; grid-template-columns: 208px 1fr; gap: 34px; align-items: start; }
 
   /* NAV */
+  .nav-toggle { display: none; }   /* бургер-бар только на мобильной ширине */
   .nav { position: sticky; top: 78px; display: flex; flex-direction: column; gap: 2px; }
   .nav-cap { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted-2); padding: 0 12px 10px; }
   .nav button {
@@ -213,13 +214,23 @@
   .toast.error { background: var(--sale); color: #fff; }
 
   @media (max-width: 760px) {
-    .layout { grid-template-columns: 1fr; }
-    /* Все пункты меню видны сразу — сетка 2 колонки вместо скролла вбок */
-    .nav { position: static; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-    .nav button { white-space: normal; }
-    .nav button.active::before { left: 8px; right: 8px; top: auto; bottom: 0; width: auto; height: 3px; border-radius: 3px 3px 0 0; }
-    .nav .nav-cap, .nav .nav-div { display: none; }
-    .nav .logout { grid-column: 1 / -1; }   /* «Выйти» — на всю ширину снизу */
+    .layout { grid-template-columns: 1fr; gap: 14px; }
+    /* Бургер-бар: текущий раздел слева + иконка справа, раскрывает список */
+    .nav-toggle {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      width: 100%; padding: 13px 16px; font: inherit; font-size: 15px; font-weight: 600;
+      cursor: pointer; color: var(--text); background: var(--surface);
+      border: 1px solid var(--line); border-radius: var(--r-sm);
+    }
+    .nav-toggle .nt-icon { width: 22px; height: 22px; flex: none; fill: none;
+      stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; transition: transform .18s; }
+    .nav-toggle[aria-expanded="true"] .nt-icon { transform: rotate(90deg); }
+    /* Навигация по умолчанию свёрнута; .open раскрывает её вертикальным списком */
+    .nav { position: static; display: none; gap: 2px; padding: 8px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); }
+    .nav.open { display: flex; flex-direction: column; }
+    .nav-cap { display: none; }
+    .nav button { white-space: normal; font-size: 15px; padding: 12px; }
     .row2 { grid-template-columns: 1fr; }
   }
 </style>
@@ -235,6 +246,11 @@
 
 <div class="wrap">
   <div class="layout">
+    <!-- Мобильный бургер: показывает текущий раздел и раскрывает список -->
+    <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="nav">
+      <span class="nt-label" id="navToggleLabel">Меню</span>
+      <svg class="nt-icon" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
     <nav class="nav" id="nav">
       <div class="nav-cap">Личный кабинет</div>
       <button data-sec="overview"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span> Обзор</button>
@@ -364,6 +380,21 @@ document.getElementById("nav").addEventListener("click", e => {
   const b = e.target.closest("[data-sec]");
   if (b) setSection(b.dataset.sec);
 });
+
+// Мобильный бургер: раскрыть/свернуть список разделов
+const navToggle = document.getElementById("navToggle");
+const navEl = document.getElementById("nav");
+navToggle.addEventListener("click", () => {
+  const open = navEl.classList.toggle("open");
+  navToggle.setAttribute("aria-expanded", open ? "true" : "false");
+});
+// Клик вне меню — свернуть
+document.addEventListener("click", e => {
+  if (!navEl.contains(e.target) && e.target !== navToggle && !navToggle.contains(e.target)) {
+    navEl.classList.remove("open");
+    navToggle.setAttribute("aria-expanded", "false");
+  }
+});
 window.addEventListener("hashchange", () => {
   const sec = (location.hash || "#overview").slice(1);
   if (SECTIONS[sec]) setSection(sec);
@@ -371,7 +402,16 @@ window.addEventListener("hashchange", () => {
 
 function setSection(sec) {
   location.hash = sec;
-  document.querySelectorAll("#nav button[data-sec]").forEach(b => b.classList.toggle("active", b.dataset.sec === sec));
+  let activeBtn = null;
+  document.querySelectorAll("#nav button[data-sec]").forEach(b => {
+    const on = b.dataset.sec === sec;
+    b.classList.toggle("active", on);
+    if (on) activeBtn = b;
+  });
+  // Подпись бургера = название текущего раздела; список сворачиваем после выбора
+  if (activeBtn) document.getElementById("navToggleLabel").textContent = activeBtn.textContent.trim();
+  document.getElementById("nav").classList.remove("open");
+  document.getElementById("navToggle").setAttribute("aria-expanded", "false");
   const el = document.getElementById("content");
   el.innerHTML = '<div class="empty">Загрузка…</div>';
   SECTIONS[sec]().catch(e => { el.innerHTML = `<div class="card"><div class="empty">Не удалось загрузить раздел</div></div>`; console.error(e); });
