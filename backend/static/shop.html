@@ -31,10 +31,6 @@
   .logo { font-size: 22px; font-weight: 800; letter-spacing: -0.03em; }
   .search { flex: 1; max-width: 520px; padding: 9px 14px; background: #f3f3f3; border: 0; border-radius: 8px; font-size: 14px; }
   .top-actions { display: flex; gap: 8px; align-items: center; }
-  .account-actions { display: flex; gap: 8px; align-items: center; }
-  /* Бургер и текстовая подпись ЛК нужны только в мобильном дропдауне */
-  .burger { display: none; }
-  .acc-label { display: none; }
   .btn { padding: 8px 14px; border-radius: 8px; border: 0; font-size: 14px; background: #f1f1f1; }
   .btn:hover { background: #e7e7e7; }
   .btn.primary { background: #16161a; color: #fff; }
@@ -768,31 +764,12 @@
     /* Защита от горизонтального вылезания: clip не ломает sticky-шапку (в отличие от hidden) */
     html, body { overflow-x: clip; max-width: 100%; }
     .hero, .brandstrip { overflow: hidden; }
-    /* Шапка: логотип + бургер + иконки в строку, поиск — отдельной строкой во всю ширину */
-    .topbar { position: relative; flex-wrap: wrap; gap: 10px; padding: 10px 14px; }
+    /* Шапка: логотип + действия в строку, поиск — отдельной строкой во всю ширину */
+    .topbar { flex-wrap: wrap; gap: 10px; padding: 10px 14px; }
     .logo { font-size: 19px; }
     .top-actions { margin-left: auto; gap: 6px; }
+    .top-actions .btn { padding: 7px 10px; font-size: 13px; }
     .search { order: 3; flex-basis: 100%; max-width: none; }
-    /* Бургер виден, оформлен как иконка-кнопка шапки */
-    .burger { display: grid; place-items: center; width: 38px; height: 38px;
-              border-radius: 8px; background: #f1f1f1; border: 0; }
-    .burger svg { width: 20px; height: 20px; stroke: #16161a; stroke-width: 2; fill: none; }
-    /* Аккаунт-действия (Админка/Войти/Выйти/ЛК) уезжают в выпадающую панель под шапкой */
-    .account-actions {
-      position: absolute; top: 100%; right: 14px; z-index: 30;
-      flex-direction: column; align-items: stretch; gap: 4px;
-      min-width: 200px; padding: 8px; margin-top: 6px;
-      background: #fff; border: 1px solid #eee; border-radius: 12px;
-      box-shadow: 0 14px 36px rgba(0,0,0,.14);
-      display: none;
-    }
-    .account-actions.open { display: flex; }
-    .account-actions .btn { width: 100%; text-align: left; padding: 10px 12px; font-size: 14px; background: #f6f6f6; }
-    /* ЛК в дропдауне — полноширинная строка с иконкой и подписью, а не круглая иконка */
-    .account-actions .acc-link { width: 100%; height: auto; justify-content: flex-start;
-              gap: 10px; padding: 10px 12px; background: #f6f6f6; border-radius: 8px; }
-    .account-actions .acc-label { display: inline; font-size: 14px; }
-    .account-actions .notif-badge { position: static; margin-left: auto; }
     /* Категории: горизонтальный скролл вместо переноса */
     .tabs { padding: 0 14px 10px; flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; scrollbar-width: none; }
     .tabs::-webkit-scrollbar { display: none; }
@@ -838,20 +815,14 @@
     <div class="logo">STRIDE</div>
     <input class="search" type="search" name="catalog-search" autocomplete="off" readonly placeholder="Поиск по кроссовкам, брендам, моделям" id="searchInput">
     <div class="top-actions">
-      <button class="burger" id="burgerBtn" aria-label="Меню" aria-expanded="false" title="Меню">
-        <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      <button class="btn" id="adminBtn" hidden>Админка</button>
+      <button class="btn" id="loginBtn">Войти</button>
+      <span class="btn" id="userLabel" hidden></span>
+      <button class="btn" id="logoutBtn" hidden>Выйти</button>
+      <button class="icon-btn" id="accountBtn" title="Личный кабинет" hidden>
+        <svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM3 21a9 9 0 0 1 18 0"/></svg>
+        <span class="badge notif-badge" id="notifBadge" hidden>0</span>
       </button>
-      <div class="account-actions" id="accountActions">
-        <button class="btn" id="adminBtn" hidden>Админка</button>
-        <button class="btn" id="loginBtn">Войти</button>
-        <span class="btn" id="userLabel" hidden></span>
-        <button class="btn" id="logoutBtn" hidden>Выйти</button>
-        <button class="icon-btn acc-link" id="accountBtn" title="Личный кабинет" hidden>
-          <svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM3 21a9 9 0 0 1 18 0"/></svg>
-          <span class="badge notif-badge" id="notifBadge" hidden>0</span>
-          <span class="acc-label">Личный кабинет</span>
-        </button>
-      </div>
       <button class="icon-btn" id="favBtn" title="Избранное">
         <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
         <span class="badge" id="favBadge" hidden>0</span>
@@ -2306,23 +2277,6 @@ async function renderFavoritesPanel() {
 }
 
 // -------------------- EVENT WIRING --------------------
-// Бургер мобильной шапки: прячет аккаунт-действия (Войти/Выйти/ЛК/Админка)
-(() => {
-  const burger = document.getElementById("burgerBtn");
-  const panel = document.getElementById("accountActions");
-  if (!burger || !panel) return;
-  const close = () => { panel.classList.remove("open"); burger.setAttribute("aria-expanded", "false"); };
-  burger.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const open = panel.classList.toggle("open");
-    burger.setAttribute("aria-expanded", open ? "true" : "false");
-  });
-  // Выбор пункта внутри панели — закрываем; клик вне панели и бургера — тоже.
-  panel.addEventListener("click", () => close());
-  document.addEventListener("click", (e) => {
-    if (!panel.contains(e.target) && e.target !== burger) close();
-  });
-})();
 document.getElementById("loginBtn").onclick = openLogin;
 document.getElementById("logoutBtn").onclick = () => {
   state.token = null; state.user = null;
