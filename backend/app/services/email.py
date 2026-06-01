@@ -41,8 +41,13 @@ def send_email(to: str, subject: str, html: str) -> None:
     msg.add_alternative(html, subtype="html")
 
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
-            if settings.smtp_tls:
+        if settings.smtp_ssl:
+            # Неявный SSL с первого байта (Яндекс/Mail.ru, порт 465).
+            cm = smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=15)
+        else:
+            cm = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15)
+        with cm as smtp:
+            if settings.smtp_tls and not settings.smtp_ssl:
                 smtp.starttls()
             if settings.smtp_user:
                 smtp.login(settings.smtp_user, settings.smtp_password)

@@ -36,7 +36,8 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = "Stride Shop <no-reply@stride.shop>"
-    smtp_tls: bool = True
+    smtp_tls: bool = True   # STARTTLS на порту 587 (Gmail, Brevo)
+    smtp_ssl: bool = False  # неявный SSL на порту 465 (Яндекс, Mail.ru)
 
     # ЮKassa (тестовый магазин). Пусто — оплата работает в режиме заглушки.
     yookassa_shop_id: str = ""
