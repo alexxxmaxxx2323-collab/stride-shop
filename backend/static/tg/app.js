@@ -9,6 +9,8 @@ const inTelegram = !!(tg && tg.initData);
 const state = {
   token: null,
   products: [],
+  favProducts: [],     // загруженные товары экрана избранного (для openProduct)
+  orders: [],          // заказы профиля (для оплаты/отмены по кнопке)
   category: "",        // "", "krossovki", "kedy", "botinki", "sale"
   search: "",
   total: 0,
@@ -24,8 +26,40 @@ const state = {
   pickupCity: "Москва",
   pickup: null,              // ПОДТВЕРЖДЁННЫЙ ПВЗ { code, address }
   pvzCandidate: null,        // ПВЗ, на который тыкнули (ещё не подтверждён)
-  payMethod: "card",         // sbp | card | cod
+  payMethod: "card",         // online | sbp | card | cod
+  // новые фичи (паритет с сайтом)
+  favIds: [],                // id избранных товаров
+  bonusBalance: 0,           // баланс бонусных баллов
+  usePoints: 0,              // сколько баллов списать на чекауте
+  ykEnabled: false,          // настроена ли реальная ЮKassa
+  currentOrder: null,        // заказ на экране оплаты
 };
+
+// ---------- Иконки (единый line-стиль с сайтом; цветные эмодзи убраны) ----------
+const HEART = '<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+const IC = {
+  pin: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+  clock: '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  card: '<svg class="ic" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
+  bank: '<svg class="ic" viewBox="0 0 24 24"><path d="M3 10l9-6 9 6"/><path d="M5 10v8M9 10v8M15 10v8M19 10v8"/><path d="M3 20h18"/></svg>',
+  package: '<svg class="ic" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>',
+  lock: '<svg class="ic" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+  telegram: '<svg class="ic-brand" viewBox="0 0 24 24"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>',
+  whatsapp: '<svg class="ic-brand" viewBox="0 0 24 24"><path d="M17.5 14.4c-.3-.1-1.8-.9-2.1-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-1 1.2-.2.2-.4.2-.7.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6.1-.1.3-.4.4-.5.1-.2.2-.3.3-.5.1-.2 0-.3 0-.5 0-.1-.7-1.7-.9-2.3-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.2.2 2.1 3.3 5.2 4.6.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4-.1-.1-.3-.2-.6-.3zM12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.4.8 3.1 1.2 4.8 1.2 5.5 0 10-4.5 10-10S17.5 2 12 2z"/></svg>',
+  checkBig: '<svg viewBox="0 0 24 24"><path d="M5 13l4 4 10-11"/></svg>',
+  boxBig: '<svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg>',
+};
+
+// Статусы исполнения и оплаты — две независимые оси (как на сайте).
+const ORDER_STATUS = {
+  pending: "В обработке", assembling: "Собирается", shipped: "Передан в доставку",
+  in_transit: "В пути", ready_for_pickup: "Готов к выдаче", delivered: "Доставлен",
+  delivery_failed: "Ошибка доставки", cancelled: "Отменён", returned: "Возврат",
+};
+const PAY_STATUS = {
+  awaiting: "Ожидает оплаты", paid: "Оплачен", cod: "Оплата при получении", refunded: "Возврат оформлен",
+};
+const CANCELLABLE = new Set(["pending", "assembling"]);
 
 let pvzMap = null;           // экземпляр Leaflet-карты
 let pvzCluster = null;       // группа-кластер маркеров
@@ -58,6 +92,7 @@ const TABS = [
 
 const fmt = (n) => n.toLocaleString("ru-RU") + " ₽";
 const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Достаёт читаемый текст ошибки из ответа API (detail бывает строкой ИЛИ
 // списком ошибок валидации Pydantic — тогда берём первое сообщение).
@@ -119,6 +154,21 @@ async function api(path, opts = {}) {
   const body = text ? JSON.parse(text) : null;
   if (!r.ok) throw { status: r.status, body };
   return body;
+}
+
+// Ленивая загрузка скрипта виджета ЮKassa (как на сайте).
+let ykScriptPromise = null;
+function loadYkScript() {
+  if (window.YooMoneyCheckoutWidget) return Promise.resolve();
+  if (ykScriptPromise) return ykScriptPromise;
+  ykScriptPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://yookassa.ru/checkout-widget/v1/checkout-widget.js";
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("Не удалось загрузить виджет ЮKassa"));
+    document.head.appendChild(s);
+  });
+  return ykScriptPromise;
 }
 
 // ---------- Авторизация через Telegram ----------
@@ -191,26 +241,23 @@ function hidePrimary() {
 }
 
 // ---------- Навигация между экранами ----------
+const VIEWS = ["Catalog", "Product", "Favorites", "Profile", "Cart", "Checkout", "Payment", "Success"];
+const BACK_TARGETS = { product: "catalog", favorites: "catalog", profile: "catalog", cart: "catalog", checkout: "cart" };
+
 function showView(name) {
   state.view = name;
-  ["Catalog", "Product", "Cart", "Checkout", "Payment", "Success"].forEach((v) => {
-    $("view" + v).hidden = v.toLowerCase() !== name;
-  });
+  VIEWS.forEach((v) => { $("view" + v).hidden = v.toLowerCase() !== name; });
   window.scrollTo(0, 0);
-
-  // Кнопка «назад» Telegram
-  const backTargets = { product: "catalog", cart: "catalog", checkout: "cart" };
   if (inTelegram && tg.BackButton) {
-    backTargets[name] ? tg.BackButton.show() : tg.BackButton.hide();
+    BACK_TARGETS[name] ? tg.BackButton.show() : tg.BackButton.hide();
   }
-  $("backBtn").hidden = !backTargets[name] || inTelegram;  // фолбэк-стрелку в шапке показываем только без Telegram
+  $("backBtn").hidden = !BACK_TARGETS[name] || inTelegram;  // фолбэк-стрелку показываем только без Telegram
 }
 
 function goBack() {
-  const map = { product: "catalog", cart: "catalog", checkout: "cart" };
-  const dest = map[state.view] || "catalog";
-  if (dest === "catalog") openCatalog();
-  else if (dest === "cart") openCart();
+  const dest = BACK_TARGETS[state.view] || "catalog";
+  if (dest === "cart") openCart();
+  else openCatalog();
 }
 
 // ---------- Каталог ----------
@@ -219,6 +266,25 @@ function renderChips() {
     (t) =>
       `<button class="tg-chip ${t.sale ? "sale" : ""} ${state.category === t.key ? "active" : ""}" data-cat="${t.key}">${t.label}</button>`
   ).join("");
+}
+
+// Единая разметка карточки товара (каталог и избранное).
+function cardHTML(p) {
+  const img = p.primary_image;
+  const badge = p.discount_pct ? `<span class="tg-badge">−${p.discount_pct}%</span>` : "";
+  const old = p.price_old ? `<span class="old">${fmt(p.price_old)}</span>` : "";
+  const favOn = state.favIds.includes(p.id) ? "active" : "";
+  return `
+    <div class="tg-card" data-pid="${p.id}">
+      ${badge}
+      <button class="tg-card-fav ${favOn}" data-fav="${p.id}" aria-label="В избранное">${HEART}</button>
+      <img class="tg-card-img" src="${img}" alt="${p.name}" loading="lazy">
+      <div class="tg-card-body">
+        <div class="tg-card-brand">${p.brand.name}</div>
+        <div class="tg-card-name">${p.name}</div>
+        <div class="tg-card-price">${fmt(p.price)}${old}</div>
+      </div>
+    </div>`;
 }
 
 async function loadCatalog() {
@@ -239,23 +305,7 @@ function renderGrid() {
     $("grid").innerHTML = `<div class="tg-empty">Ничего не найдено</div>`;
     return;
   }
-  $("grid").innerHTML = state.products
-    .map((p) => {
-      const img = p.primary_image;
-      const badge = p.discount_pct ? `<span class="tg-badge">−${p.discount_pct}%</span>` : "";
-      const old = p.price_old ? `<span class="old">${fmt(p.price_old)}</span>` : "";
-      return `
-        <div class="tg-card" data-pid="${p.id}">
-          ${badge}
-          <img class="tg-card-img" src="${img}" alt="${p.name}" loading="lazy">
-          <div class="tg-card-body">
-            <div class="tg-card-brand">${p.brand.name}</div>
-            <div class="tg-card-name">${p.name}</div>
-            <div class="tg-card-price">${fmt(p.price)}${old}</div>
-          </div>
-        </div>`;
-    })
-    .join("");
+  $("grid").innerHTML = state.products.map(cardHTML).join("");
 }
 
 function openCatalog() {
@@ -263,11 +313,138 @@ function openCatalog() {
   updateCartIndicator();
 }
 
+// ---------- Избранное ----------
+async function loadFavIds() {
+  if (!state.token) return;
+  try { state.favIds = await api("/favorites/ids"); updateFavIndicator(); } catch (e) { /* пусто */ }
+}
+
+function updateFavIndicator() {
+  const d = $("favIndN");
+  if (d) d.hidden = !(state.favIds && state.favIds.length);
+}
+
+async function toggleFavorite(id) {
+  if (!state.token) { toast("Откройте магазин через Telegram, чтобы пользоваться избранным", true); return; }
+  const isFav = state.favIds.includes(id);
+  try {
+    state.favIds = isFav
+      ? await api(`/favorites/${id}`, { method: "DELETE" })
+      : await api("/favorites", { method: "POST", body: JSON.stringify({ product_id: id }) });
+    updateFavIndicator();
+    if (state.view === "catalog") renderGrid();
+    else if (state.view === "favorites") openFavorites();
+    if (tg && tg.HapticFeedback && tg.HapticFeedback.selectionChanged) tg.HapticFeedback.selectionChanged();
+  } catch (e) {
+    toast(errText(e, "Не удалось обновить избранное"), true);
+  }
+}
+
+async function openFavorites() {
+  showView("favorites");
+  hidePrimary();
+  const el = $("viewFavorites");
+  el.innerHTML = `<div class="tg-sec-head"><h2>Избранное</h2></div><div class="tg-grid" id="favGrid"><div class="loader">Загрузка…</div></div>`;
+  if (!state.token) {
+    $("favGrid").innerHTML = `<div class="tg-empty">Откройте магазин через Telegram, чтобы пользоваться избранным</div>`;
+    return;
+  }
+  try {
+    const items = await api("/favorites");
+    state.favProducts = items;
+    if (!items.length) {
+      $("favGrid").innerHTML = `<div class="tg-empty">Пока пусто. Жмите сердечко на карточке товара.</div>`;
+      return;
+    }
+    $("favGrid").innerHTML = items.map(cardHTML).join("");
+  } catch (e) {
+    $("favGrid").innerHTML = `<div class="tg-empty">Не удалось загрузить избранное</div>`;
+  }
+}
+
+// ---------- Профиль: заказы + бонусы + поддержка ----------
+async function loadBonus() {
+  if (!state.token) return;
+  try { const b = await api("/account/bonuses"); state.bonusBalance = b.balance; } catch (e) { /* пусто */ }
+}
+
+async function openProfile() {
+  showView("profile");
+  hidePrimary();
+  const el = $("viewProfile");
+  if (!state.token) {
+    el.innerHTML = `<div class="tg-sec-head"><h2>Профиль</h2></div><div class="tg-empty">Откройте магазин через Telegram, чтобы видеть заказы и бонусы</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="tg-sec-head"><h2>Профиль</h2></div><div class="loader">Загрузка…</div>`;
+  const [bonus, orders, meta] = await Promise.all([
+    api("/account/bonuses").catch(() => ({ balance: state.bonusBalance, cashback_pct: 0 })),
+    api("/orders").catch(() => []),
+    api("/support/meta").catch(() => ({})),
+  ]);
+  state.bonusBalance = bonus.balance;
+  state.orders = orders;
+  renderProfile(bonus, orders, meta);
+}
+
+function orderCardHTML(o) {
+  const st = ORDER_STATUS[o.status] || o.status;
+  const pst = PAY_STATUS[o.payment_status] || o.payment_status;
+  const canPay = o.payment_status === "awaiting";
+  const canCancel = CANCELLABLE.has(o.status);
+  const actions = (canPay || canCancel) ? `
+    <div class="ord-actions">
+      ${canPay ? `<button class="ord-btn primary" data-pay-order="${o.id}">Оплатить</button>` : ""}
+      ${canCancel ? `<button class="ord-btn danger" data-cancel-order="${o.id}">Отменить</button>` : ""}
+    </div>` : "";
+  return `
+    <div class="ord">
+      <div class="ord-top"><span class="ord-id">Заказ №${o.id}</span><span class="ord-sum">${fmt(o.total_amount)}</span></div>
+      <div class="ord-badges"><span class="st ${o.status}">${st}</span><span class="st ${o.payment_status}">${pst}</span></div>
+      <div class="ord-meta">${o.items.map((i) => `${i.product_name} · р.${i.size} ×${i.quantity}`).join("<br>")}</div>
+      ${actions}
+    </div>`;
+}
+
+function renderProfile(bonus, orders, meta) {
+  const support = (meta.telegram_url || meta.whatsapp_url) ? `
+    <div class="pf-section-label">Поддержка</div>
+    <div class="pf-support">
+      ${meta.telegram_url ? `<a href="${meta.telegram_url}" target="_blank" rel="noopener">${IC.telegram} Telegram</a>` : ""}
+      ${meta.whatsapp_url ? `<a href="${meta.whatsapp_url}" target="_blank" rel="noopener">${IC.whatsapp} WhatsApp</a>` : ""}
+    </div>` : "";
+  const ordersHtml = orders.length
+    ? orders.map(orderCardHTML).join("")
+    : `<div class="tg-empty" style="padding:24px 14px">Заказов ещё нет</div>`;
+  $("viewProfile").innerHTML = `
+    <div class="tg-sec-head"><h2>Профиль</h2></div>
+    <div class="pf-bonus">
+      <div class="lbl">Бонусный баланс</div>
+      <div class="val">${fmt(bonus.balance)}</div>
+      <div class="sub">${bonus.cashback_pct ? `Кэшбэк ${bonus.cashback_pct}% с каждого заказа · 1 балл = 1 ₽` : "1 балл = 1 ₽"}</div>
+    </div>
+    <div class="pf-section-label">Мои заказы</div>
+    ${ordersHtml}
+    ${support}`;
+}
+
+async function cancelOrder(id) {
+  try {
+    await api(`/orders/${id}/cancel`, { method: "POST" });
+    toast("Заказ отменён");
+    openProfile();
+  } catch (e) {
+    toast(errText(e, "Не удалось отменить заказ"), true);
+  }
+}
+
 // ---------- Товар ----------
 async function openProduct(id) {
-  const p = state.products.find((x) => x.id === id);
-  if (!p) return;
-  state.product = { ...p };  // копия из списка для мгновенного показа
+  let p = state.products.find((x) => x.id === id) || state.favProducts.find((x) => x.id === id);
+  if (!p) {
+    try { p = await api(`/products/${id}`); } catch (e) { return; }
+  }
+  state.product = { ...p };  // копия для мгновенного показа
   state.variantIdx = 0;
   state.imageIdx = 0;
   state.size = null;
@@ -326,10 +503,14 @@ function renderProduct() {
   const img = images[state.imageIdx] || images[0];
   const allSizes = [39, 40, 41, 42, 43, 44, 45];
   const old = p.price_old ? `<span class="old">${fmt(p.price_old)}</span>` : "";
+  const favOn = state.favIds.includes(p.id) ? "active" : "";
 
   $("viewProduct").innerHTML = `
     <div class="pv-wrap">
-      <img class="pv-photo" src="${img.url}" alt="${p.name}">
+      <div style="position:relative">
+        <img class="pv-photo" src="${img.url}" alt="${p.name}">
+        <button class="tg-card-fav ${favOn}" data-fav="${p.id}" style="top:12px;right:12px;width:38px;height:38px" aria-label="В избранное">${HEART}</button>
+      </div>
       ${
         images.length > 1
           ? `<div class="pv-thumbs">${images
@@ -461,6 +642,23 @@ async function changeQty(itemId, delta) {
 }
 
 // ---------- Оформление ----------
+function pointsBlockHTML() {
+  if (!state.token || state.bonusBalance <= 0) return "";
+  const max = Math.min(state.bonusBalance, state.cart.total);
+  const on = state.usePoints > 0;
+  return `
+    <div class="pts">
+      <div class="pts-top">
+        <div><div class="pts-lbl">Оплатить баллами</div><div class="pts-bal">Доступно: ${fmt(state.bonusBalance)}</div></div>
+        <label class="sw"><input type="checkbox" id="ptsToggle" ${on ? "checked" : ""}><span class="track"></span></label>
+      </div>
+      <div class="pts-row" id="ptsRow" ${on ? "" : "hidden"}>
+        <input type="number" id="ptsInput" min="0" max="${max}" value="${on ? state.usePoints : max}" inputmode="numeric">
+        <button type="button" class="pts-max" id="ptsMax">Макс</button>
+      </div>
+    </div>`;
+}
+
 function openCheckout() {
   if (!requireTelegram()) return;
   showView("checkout");
@@ -478,6 +676,7 @@ function openCheckout() {
       </div>
     </div>
     <div id="deliveryBody"></div>
+    ${pointsBlockHTML()}
     <div class="field"><div class="err" id="coErr"></div></div>`;
   maskPhone($("coPhone"));
   renderDeliveryBody();
@@ -557,7 +756,7 @@ async function loadPvzPoints() {
   if (listEl) {
     listEl.innerHTML = points
       .slice(0, 40)
-      .map((p) => `<button type="button" class="pvz-item" data-pvz='${encodeURIComponent(JSON.stringify({ code: p.code, address: p.address, work_time: p.work_time, lat: p.lat, lon: p.lon }))}'>📍 ${p.address}</button>`)
+      .map((p) => `<button type="button" class="pvz-item" data-pvz='${encodeURIComponent(JSON.stringify({ code: p.code, address: p.address, work_time: p.work_time, lat: p.lat, lon: p.lon }))}'>${IC.pin} ${p.address}</button>`)
       .join("");
   }
 }
@@ -570,9 +769,9 @@ function selectPvz(p) {
   const confirmed = state.pickup && state.pickup.code === p.code;
   el.hidden = false;
   el.innerHTML = `
-    <div class="pvz-d-name">📍 Пункт выдачи</div>
+    <div class="pvz-d-name">${IC.pin} Пункт выдачи</div>
     <div class="pvz-d-addr">${p.address}</div>
-    <div class="pvz-d-work">🕒 ${p.work_time || "часы работы уточняются"}</div>
+    <div class="pvz-d-work">${IC.clock} ${p.work_time || "часы работы уточняются"}</div>
     <button type="button" class="pvz-confirm ${confirmed ? "done" : ""}" data-confirm-pvz ${confirmed ? "disabled" : ""}>
       ${confirmed ? "✓ Адрес подтверждён" : "Подтвердить адрес"}
     </button>`;
@@ -614,10 +813,15 @@ async function placeOrder() {
   if (firstMsg) { showCoErr(firstMsg); return; }
   showCoErr("");
 
+  // Оплата баллами — списываем не больше баланса и суммы корзины.
+  payload.use_points = Math.max(0, Math.min(state.usePoints || 0, state.bonusBalance, state.cart.total));
+
   try {
     const res = await api("/orders", { method: "POST", body: JSON.stringify(payload) });
     state.cart = { items: [], total: 0, items_count: 0 };
+    state.usePoints = 0;
     updateCartIndicator();
+    loadBonus();  // баланс мог уменьшиться (списание баллов)
     renderPayment(res.order);
   } catch (e) {
     showCoErr(errText(e, "Проверьте данные доставки"));
@@ -630,20 +834,30 @@ function showCoErr(msg) {
   if (msg && tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("error");
 }
 
-// ---------- Оплата (тестовая, выбор способа) ----------
-const PAY_METHODS = [
-  { key: "sbp", label: "СБП (по QR)", icon: "🏦" },
-  { key: "card", label: "Карта МИР / банковская", icon: "💳" },
-  { key: "cod", label: "При получении", icon: "📦" },
-];
+// ---------- Оплата ----------
+// При настроенной ЮKassa — реальный встроенный виджет (online) + «при получении».
+// Иначе — mock-заглушка (СБП / карта / при получении).
+function paymentMethods() {
+  if (state.ykEnabled) return [
+    { key: "online", label: "Онлайн-оплата", icon: IC.card },
+    { key: "cod", label: "При получении", icon: IC.package },
+  ];
+  return [
+    { key: "sbp", label: "СБП (по QR)", icon: IC.bank },
+    { key: "card", label: "Карта МИР / банковская", icon: IC.card },
+    { key: "cod", label: "При получении", icon: IC.package },
+  ];
+}
 
 function renderPayment(order) {
   state.currentOrder = order;
+  state.payMethod = state.ykEnabled ? "online" : "card";
   showView("payment");
+  const methods = paymentMethods();
   $("viewPayment").innerHTML = `
     <div class="pay">
       <h2>Заказ №${order.id} создан</h2>
-      <div class="hint">Выберите способ оплаты. Оплата тестовая — деньги не списываются.</div>
+      <div class="hint">${state.ykEnabled ? "Оплата через ЮKassa в тестовом режиме — деньги не списываются." : "Оплата тестовая — деньги не списываются."}</div>
       <div class="pay-card">
         ${order.items
           .map((it) => `<div class="pay-row"><span>${it.product_name} · р.${it.size} ×${it.quantity}</span><span>${fmt(it.subtotal)}</span></div>`)
@@ -651,20 +865,68 @@ function renderPayment(order) {
         <div class="pay-row total"><span>К оплате</span><span>${fmt(order.total_amount)}</span></div>
       </div>
       <div class="pay-methods" id="payMethods">
-        ${PAY_METHODS.map((m) => `
+        ${methods.map((m) => `
           <button type="button" class="pay-method ${state.payMethod === m.key ? "active" : ""}" data-method="${m.key}">
-            <span>${m.icon} ${m.label}</span><span class="pm-dot"></span>
+            <span class="pm-ic">${m.icon} ${m.label}</span><span class="pm-dot"></span>
           </button>`).join("")}
       </div>
-      <div class="pay-note">🔒 Демо: реальная интеграция — здесь был бы экран банка/СБП.</div>
+      <div id="ykMount"></div>
+      <div class="pay-note">${IC.lock} ${state.ykEnabled ? "Платёж защищён ЮKassa." : "Демо-режим оплаты."}</div>
     </div>`;
   updatePayButton(order);
 }
 
 function updatePayButton(order) {
-  const cod = state.payMethod === "cod";
-  const text = cod ? "Оформить (оплата при получении)" : `Оплатить ${fmt(order.total_amount)} (тест)`;
-  setPrimary(text, () => payMock(order), { enabled: true });
+  let text;
+  if (state.payMethod === "cod") text = "Оформить (оплата при получении)";
+  else if (state.payMethod === "online") text = `Перейти к оплате · ${fmt(order.total_amount)}`;
+  else text = `Оплатить ${fmt(order.total_amount)} (тест)`;
+  setPrimary(text, () => payAction(order), { enabled: true });
+}
+
+function payAction(order) {
+  if (state.payMethod === "online" && state.ykEnabled) return payYk(order);
+  return payMock(order);  // cod / sbp / card (mock)
+}
+
+async function payYk(order) {
+  try {
+    const { confirmation_token } = await api("/payments/yookassa/create", {
+      method: "POST", body: JSON.stringify({ order_id: order.id }),
+    });
+    await loadYkScript();
+    const pm = $("payMethods"); if (pm) pm.hidden = true;
+    $("ykMount").innerHTML = `<div id="ykWidget"></div>`;
+    hidePrimary();
+    const checkout = new window.YooMoneyCheckoutWidget({
+      confirmation_token,
+      error_callback(e) { toast("Ошибка виджета оплаты", true); console.error(e); },
+    });
+    // Встроенный виджет сам не редиректит — ловим завершение и сверяем на сервере.
+    checkout.on("complete", () => { try { checkout.destroy(); } catch (_) {} pollYk(order); });
+    checkout.render("ykWidget");
+  } catch (e) {
+    toast(errText(e, "Не удалось создать платёж"), true);
+  }
+}
+
+async function pollYk(order) {
+  $("viewPayment").innerHTML = `
+    <div class="pay-checking">
+      <div class="spin"></div>
+      <h2 style="font-size:18px;margin:0 0 6px">Проверяем оплату…</h2>
+      <p style="color:var(--hint);margin:0">Заказ №${order.id} · ${fmt(order.total_amount)}</p>
+    </div>`;
+  hidePrimary();
+  for (let i = 0; i < 10; i++) {
+    try {
+      const r = await api("/payments/yookassa/check", { method: "POST", body: JSON.stringify({ order_id: order.id }) });
+      if (r.payment_status === "paid") { renderSuccess(order, true, "card"); return; }
+    } catch (e) { /* временная ошибка — пробуем ещё */ }
+    await sleep(1500);
+  }
+  $("viewPayment").innerHTML = `<div class="pay" style="text-align:center"><p style="color:var(--hint)">Оплата ещё не подтверждена. Если вы только что оплатили — подождите минуту и проверьте снова.</p></div>`;
+  setPrimary("Проверить ещё раз", () => pollYk(order), { enabled: true });
 }
 
 async function payMock(order) {
@@ -685,18 +947,26 @@ function renderSuccess(order, paid = false, method = "card") {
   const codNote = method === "cod"
     ? "Оплата при получении в пункте выдачи."
     : "Оплата прошла. ";
+  const icon = paid
+    ? `<div class="ok-ic">${IC.checkBig}</div>`
+    : `<div class="ok-ic">${IC.boxBig}</div>`;
   $("viewSuccess").innerHTML = `
     <div class="success">
-      <div class="ok">${paid ? "✅" : "📦"}</div>
+      ${icon}
       <h2>Заказ №${order.id} ${paid ? "оплачен" : "оформлен"}</h2>
       <p>Сумма: ${fmt(order.total_amount)}<br>${codNote}Подтверждение придёт в чат.</p>
     </div>`;
   setPrimary("Вернуться в каталог", openCatalog, { enabled: true });
+  loadBonus();  // мог начислиться кэшбэк
   if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
 }
 
 // ---------- Делегирование кликов ----------
 document.addEventListener("click", (e) => {
+  // сердечко избранного (раньше открытия карточки)
+  const fav = e.target.closest("[data-fav]");
+  if (fav) { e.stopPropagation(); toggleFavorite(+fav.dataset.fav); return; }
+
   const card = e.target.closest("[data-pid]");
   if (card) return openProduct(+card.dataset.pid);
 
@@ -727,6 +997,24 @@ document.addEventListener("click", (e) => {
   const dec = e.target.closest("[data-dec]");
   if (dec) return changeQty(+dec.dataset.dec, -1);
 
+  // оплата/отмена заказа из профиля
+  const payOrd = e.target.closest("[data-pay-order]");
+  if (payOrd) {
+    const o = state.orders.find((x) => x.id === +payOrd.dataset.payOrder);
+    if (o) renderPayment(o);
+    return;
+  }
+  const cancelOrd = e.target.closest("[data-cancel-order]");
+  if (cancelOrd) return cancelOrder(+cancelOrd.dataset.cancelOrder);
+
+  // «Макс» в оплате баллами
+  if (e.target.id === "ptsMax") {
+    const max = Math.min(state.bonusBalance, state.cart.total);
+    state.usePoints = max;
+    const inp = $("ptsInput"); if (inp) inp.value = max;
+    return;
+  }
+
   // переключатель способа получения
   const dt = e.target.closest("[data-dtype]");
   if (dt) {
@@ -753,19 +1041,41 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// смена города на карте ПВЗ
+// смена города ПВЗ + переключатель оплаты баллами
 document.addEventListener("change", (e) => {
   if (e.target.id === "pvzCity") {
     state.pickupCity = e.target.value;
     state.pickup = null;
     loadPvzPoints();
+    return;
+  }
+  if (e.target.id === "ptsToggle") {
+    const row = $("ptsRow");
+    const max = Math.min(state.bonusBalance, state.cart.total);
+    if (e.target.checked) {
+      state.usePoints = max;
+      if (row) { row.hidden = false; const inp = $("ptsInput"); if (inp) inp.value = max; }
+    } else {
+      state.usePoints = 0;
+      if (row) row.hidden = true;
+    }
   }
 });
 
 $("backBtn").addEventListener("click", goBack);
+$("favBtn").addEventListener("click", openFavorites);
+$("profileBtn").addEventListener("click", openProfile);
 $("cartBtn").addEventListener("click", openCart);
-// убираем красную подсветку поля, как только в нём начали печатать
-$("viewCheckout").addEventListener("input", (e) => e.target.classList && e.target.classList.remove("input-error"));
+// убираем красную подсветку поля при вводе + клампим ввод баллов
+$("viewCheckout").addEventListener("input", (e) => {
+  if (e.target.classList) e.target.classList.remove("input-error");
+  if (e.target.id === "ptsInput") {
+    const max = Math.min(state.bonusBalance, state.cart.total);
+    let v = parseInt(e.target.value, 10) || 0;
+    v = Math.max(0, Math.min(v, max));
+    state.usePoints = v;
+  }
+});
 
 let searchTimer;
 $("searchInput").addEventListener("input", (e) => {
@@ -782,7 +1092,9 @@ async function init() {
     if (inTelegram && tg.BackButton) tg.BackButton.onClick(goBack);
   }
   renderChips();
-  await authTelegram();      // не в Telegram — просто каталог без заказа
+  try { const cfg = await api("/payments/config"); state.ykEnabled = !!cfg.yookassa_enabled; } catch (e) { state.ykEnabled = false; }
+  const authed = await authTelegram();   // не в Telegram — просто каталог без заказа
+  if (authed) { await loadFavIds(); await loadBonus(); }
   await loadCatalog();
   openCatalog();
 }
