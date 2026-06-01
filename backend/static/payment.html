@@ -233,7 +233,7 @@ async function payOrder(order) {
     if (payMethod === "online") {
       // Реальная ЮKassa: создаём платёж и монтируем встроенный виджет.
       const { confirmation_token } = await api("/payments/yookassa/create", {
-        method: "POST", body: JSON.stringify({ order_id: order.id }),
+        method: "POST", body: JSON.stringify({ order_id: order.id, origin: location.origin }),
       });
       await loadYkScript();
       document.getElementById("methodBody").innerHTML =

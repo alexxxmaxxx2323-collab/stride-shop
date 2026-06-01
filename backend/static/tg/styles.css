@@ -1,14 +1,14 @@
-/* Цвета берём из темы Telegram (var(--tg-theme-*)), с запасными значениями
-   на случай открытия в обычном браузере. */
+/* Тёмная premium-палитра — единая с сайтом (shop.html), всегда тёмная
+   независимо от темы Telegram (бренд-оформление важнее системной темы). */
 :root {
-  --bg: var(--tg-theme-bg-color, #ffffff);
-  --text: var(--tg-theme-text-color, #16161a);
-  --hint: var(--tg-theme-hint-color, #8a8a8e);
-  --link: var(--tg-theme-link-color, #2481cc);
-  --btn: var(--tg-theme-button-color, #16161a);
-  --btn-text: var(--tg-theme-button-text-color, #ffffff);
-  --card: var(--tg-theme-secondary-bg-color, #f4f4f5);
-  --accent: #f5163f;
+  --bg: #0b0b0d;
+  --text: #f3f3f5;
+  --hint: #9a9aa3;
+  --link: #ccff00;
+  --btn: #ccff00;            /* волт-акцент — главные кнопки, как на сайте */
+  --btn-text: #0b0b0d;
+  --card: #1e1e23;
+  --accent: #ff2e51;         /* красный — бейджи, скидки, ошибки (site --sale) */
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }

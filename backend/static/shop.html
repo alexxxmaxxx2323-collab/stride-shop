@@ -761,6 +761,9 @@
      МОБИЛЬНАЯ АДАПТАЦИЯ (телефоны/планшеты)
      ============================================================ */
   @media (max-width: 640px) {
+    /* Защита от горизонтального вылезания: clip не ломает sticky-шапку (в отличие от hidden) */
+    html, body { overflow-x: clip; max-width: 100%; }
+    .hero, .brandstrip { overflow: hidden; }
     /* Шапка: логотип + действия в строку, поиск — отдельной строкой во всю ширину */
     .topbar { flex-wrap: wrap; gap: 10px; padding: 10px 14px; }
     .logo { font-size: 19px; }

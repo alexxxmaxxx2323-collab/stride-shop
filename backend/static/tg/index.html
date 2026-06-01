@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <!-- На время разработки запрещаем кэш, иначе браузер/Telegram отдают старую версию -->
+  <meta http-equiv="Cache-Control" content="no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
   <title>STRIDE</title>
   <!-- Мостик Telegram: даёт window.Telegram.WebApp (тема, кнопки, данные юзера) -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -16,7 +19,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <link rel="stylesheet" href="styles.css?v=10">
+  <link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
   <!-- Шапка -->
@@ -70,6 +73,6 @@
   <!-- Всплывающая подсказка -->
   <div class="tg-toast" id="toast" hidden></div>
 
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>

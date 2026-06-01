@@ -214,10 +214,12 @@
 
   @media (max-width: 760px) {
     .layout { grid-template-columns: 1fr; }
-    .nav { position: static; flex-direction: row; overflow-x: auto; gap: 4px; padding-bottom: 6px; }
-    .nav button { white-space: nowrap; }
+    /* Все пункты меню видны сразу — сетка 2 колонки вместо скролла вбок */
+    .nav { position: static; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .nav button { white-space: normal; }
     .nav button.active::before { left: 8px; right: 8px; top: auto; bottom: 0; width: auto; height: 3px; border-radius: 3px 3px 0 0; }
-    .nav .nav-cap, .nav .nav-div, .nav .logout { display: none; }
+    .nav .nav-cap, .nav .nav-div { display: none; }
+    .nav .logout { grid-column: 1 / -1; }   /* «Выйти» — на всю ширину снизу */
     .row2 { grid-template-columns: 1fr; }
   }
 </style>

@@ -246,7 +246,7 @@ const BACK_TARGETS = { product: "catalog", favorites: "catalog", profile: "catal
 
 function showView(name) {
   state.view = name;
-  VIEWS.forEach((v) => { $("view" + v).hidden = v.toLowerCase() !== name; });
+  VIEWS.forEach((v) => { const el = $("view" + v); if (el) el.hidden = v.toLowerCase() !== name; });
   window.scrollTo(0, 0);
   if (inTelegram && tg.BackButton) {
     BACK_TARGETS[name] ? tg.BackButton.show() : tg.BackButton.hide();
@@ -365,7 +365,7 @@ async function openFavorites() {
 // ---------- Профиль: заказы + бонусы + поддержка ----------
 async function loadBonus() {
   if (!state.token) return;
-  try { const b = await api("/account/bonuses"); state.bonusBalance = b.balance; } catch (e) { /* пусто */ }
+  try { const b = await api("/me/bonuses"); state.bonusBalance = b.balance; } catch (e) { /* пусто */ }
 }
 
 async function openProfile() {
@@ -378,7 +378,7 @@ async function openProfile() {
   }
   el.innerHTML = `<div class="tg-sec-head"><h2>Профиль</h2></div><div class="loader">Загрузка…</div>`;
   const [bonus, orders, meta] = await Promise.all([
-    api("/account/bonuses").catch(() => ({ balance: state.bonusBalance, cashback_pct: 0 })),
+    api("/me/bonuses").catch(() => ({ balance: state.bonusBalance, cashback_pct: 0 })),
     api("/orders").catch(() => []),
     api("/support/meta").catch(() => ({})),
   ]);
@@ -892,7 +892,7 @@ function payAction(order) {
 async function payYk(order) {
   try {
     const { confirmation_token } = await api("/payments/yookassa/create", {
-      method: "POST", body: JSON.stringify({ order_id: order.id }),
+      method: "POST", body: JSON.stringify({ order_id: order.id, origin: location.origin }),
     });
     await loadYkScript();
     const pm = $("payMethods"); if (pm) pm.hidden = true;
@@ -1062,12 +1062,13 @@ document.addEventListener("change", (e) => {
   }
 });
 
-$("backBtn").addEventListener("click", goBack);
-$("favBtn").addEventListener("click", openFavorites);
-$("profileBtn").addEventListener("click", openProfile);
-$("cartBtn").addEventListener("click", openCart);
+// Привязки устойчивы к отсутствию элемента (на случай рассинхрона версий HTML/JS).
+$("backBtn") && $("backBtn").addEventListener("click", goBack);
+$("favBtn") && $("favBtn").addEventListener("click", openFavorites);
+$("profileBtn") && $("profileBtn").addEventListener("click", openProfile);
+$("cartBtn") && $("cartBtn").addEventListener("click", openCart);
 // убираем красную подсветку поля при вводе + клампим ввод баллов
-$("viewCheckout").addEventListener("input", (e) => {
+$("viewCheckout") && $("viewCheckout").addEventListener("input", (e) => {
   if (e.target.classList) e.target.classList.remove("input-error");
   if (e.target.id === "ptsInput") {
     const max = Math.min(state.bonusBalance, state.cart.total);
@@ -1078,7 +1079,7 @@ $("viewCheckout").addEventListener("input", (e) => {
 });
 
 let searchTimer;
-$("searchInput").addEventListener("input", (e) => {
+$("searchInput") && $("searchInput").addEventListener("input", (e) => {
   state.search = e.target.value.trim();
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => loadCatalog().then(updateCartIndicator), 300);
@@ -1089,6 +1090,9 @@ async function init() {
   if (tg) {
     tg.ready();
     tg.expand();
+    // Бренд-оформление всегда тёмное — подстраиваем и хром Telegram под него.
+    try { if (tg.setBackgroundColor) tg.setBackgroundColor("#0b0b0d"); } catch (_) {}
+    try { if (tg.setHeaderColor) tg.setHeaderColor("#0b0b0d"); } catch (_) {}
     if (inTelegram && tg.BackButton) tg.BackButton.onClick(goBack);
   }
   renderChips();

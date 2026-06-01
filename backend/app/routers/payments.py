@@ -83,6 +83,10 @@ def pay_config() -> PayConfigOut:
 
 class YkCreateIn(BaseModel):
     order_id: int
+    # Origin клиента (window.location.origin) — чтобы return_url виджета вёл туда,
+    # откуда платят (сайт/туннель/домен), а не на жёстко зашитый localhost.
+    # Для прода — валидировать по allowlist (см. PAYMENTS_PRODUCTION.md).
+    origin: str | None = None
 
 
 class YkCreateOut(BaseModel):
@@ -103,7 +107,12 @@ def yookassa_create(
         raise HTTPException(status.HTTP_409_CONFLICT, "Заказ уже оплачен")
 
     # yk=1 — маркер возврата из виджета: на нём фронт сверяет статус оплаты.
-    return_url = f"{settings.site_url}/static/payment.html?order={order.id}&yk=1"
+    # База берётся из origin клиента (если валиден), иначе — site_url. Это чинит
+    # возврат при доступе через туннель/домен (localhost недостижим с телефона).
+    base = settings.site_url
+    if data.origin and data.origin.startswith(("http://", "https://")):
+        base = data.origin.rstrip("/")
+    return_url = f"{base}/static/payment.html?order={order.id}&yk=1"
     try:
         payment_id, token = yookassa_pay.create_embedded_payment(
             order_id=order.id,
