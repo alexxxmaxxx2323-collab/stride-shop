@@ -1,38 +1,79 @@
-/* Общий стиль для всех info-страниц. Подключается через <link>. */
+/* Общий стиль для всех info-страниц. Тёмная премиум-тема — в тон shop.html. */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg: #0b0b0d;
+  --surface: #151518;
+  --surface-2: #1e1e23;
+  --line: rgba(255,255,255,.08);
+  --line-strong: rgba(255,255,255,.18);
+  --text: #f3f3f5;
+  --muted: #9a9aa3;
+  --muted-2: #6c6c75;
+  --accent: #ccff00;        /* volt — премиум-акцент, точечно */
+  --sale: #ff2e51;
+  --r: 16px;
+  --r-sm: 10px;
+}
 *,*::before,*::after { box-sizing: border-box; }
-body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; margin: 0; background: #fafafa; color: #16161a; line-height: 1.6; }
-a { color: #16161a; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 50% -240px, #1a1a20 0%, var(--bg) 58%) fixed,
+    var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--text); }
+::selection { background: var(--accent); color: #000; }
 
-header { background: #fff; border-bottom: 1px solid #eee; padding: 14px 32px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }
-header .logo { font-size: 22px; font-weight: 800; letter-spacing: -.03em; text-decoration: none; }
-header nav a { text-decoration: none; font-size: 14px; color: #555; margin-left: 18px; }
-header nav a:hover { color: #16161a; }
+header {
+  background: rgba(11,11,13,.85);
+  backdrop-filter: saturate(140%) blur(10px);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 32px;
+  display: flex; justify-content: space-between; align-items: center;
+  position: sticky; top: 0; z-index: 10;
+}
+header .logo {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 22px; font-weight: 700; letter-spacing: -.03em;
+  text-decoration: none; color: var(--text);
+}
+header .logo::after { content: "."; color: var(--accent); }
+header nav a { text-decoration: none; font-size: 14px; color: var(--muted); margin-left: 18px; transition: color .15s; }
+header nav a:hover { color: var(--text); }
 
-.crumbs { padding: 18px 32px 0; max-width: 980px; margin: 0 auto; color: #888; font-size: 13px; }
-.crumbs a { color: #888; text-decoration: none; }
-.crumbs a:hover { color: #16161a; }
+.crumbs { padding: 18px 32px 0; max-width: 980px; margin: 0 auto; color: var(--muted-2); font-size: 13px; }
+.crumbs a { color: var(--muted-2); text-decoration: none; }
+.crumbs a:hover { color: var(--accent); }
 
 main { max-width: 980px; margin: 0 auto; padding: 20px 32px 80px; }
-h1 { font-size: 32px; margin: 14px 0 24px; letter-spacing: -0.02em; }
-h2 { font-size: 20px; margin: 32px 0 12px; }
-h3 { font-size: 16px; margin: 20px 0 8px; }
-p { margin: 0 0 14px; color: #2a2a2e; }
-ul, ol { padding-left: 22px; color: #2a2a2e; }
+h1 { font-family: "Space Grotesk", sans-serif; font-size: 32px; margin: 14px 0 24px; letter-spacing: -0.02em; font-weight: 700; }
+h2 { font-family: "Space Grotesk", sans-serif; font-size: 20px; margin: 32px 0 12px; font-weight: 600; }
+h3 { font-family: "Space Grotesk", sans-serif; font-size: 16px; margin: 20px 0 8px; font-weight: 600; }
+p { margin: 0 0 14px; color: #cfcfd6; }
+ul, ol { padding-left: 22px; color: #cfcfd6; }
 li { margin-bottom: 6px; }
 
-.faq-q { font-weight: 600; margin-top: 22px; margin-bottom: 6px; color: #16161a; }
-.faq-a { color: #555; }
+.faq-q { font-weight: 600; margin-top: 22px; margin-bottom: 6px; color: var(--text); }
+.faq-a { color: var(--muted); }
 
-.callout { background: #fff; border-left: 4px solid #16161a; padding: 16px 20px; border-radius: 6px; margin: 22px 0; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
-.callout.warn { border-left-color: #f5163f; }
+.callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); padding: 16px 20px; border-radius: var(--r-sm); margin: 22px 0; }
+.callout.warn { border-left-color: var(--sale); }
 .callout.info { border-left-color: #0a84ff; }
 
-table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
-th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
-th { background: #f6f6f6; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #666; }
+table { width: 100%; border-collapse: collapse; margin: 20px 0; background: var(--surface); border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--line); }
+th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--line); font-size: 14px; }
+th { background: var(--surface-2); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+td { color: #cfcfd6; }
+tr:last-child td { border-bottom: none; }
 
-footer { background: #16161a; color: #888; padding: 22px 32px; text-align: center; font-size: 13px; }
-footer a { color: #c8c8c8; }
+footer { background: #08080a; color: var(--muted); padding: 22px 32px; text-align: center; font-size: 13px; border-top: 1px solid var(--line); margin-top: 40px; }
+footer a { color: var(--accent); text-decoration: none; }
 
 /* Мобильная адаптация */
 @media (max-width: 640px) {
