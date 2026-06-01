@@ -21,6 +21,9 @@
   body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; margin: 0; background: #fafafa; color: #16161a; }
   a { color: inherit; text-decoration: none; }
   button { font-family: inherit; cursor: pointer; }
+  /* Инлайн-иконки: line-style (наследуют цвет текста) и бренд-логотипы (filled) */
+  .ic { width: 1em; height: 1em; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.125em; flex-shrink: 0; }
+  .ic-brand { width: 1em; height: 1em; fill: currentColor; vertical-align: -0.125em; flex-shrink: 0; }
 
   /* ---- HEADER ---- */
   header { position: sticky; top: 0; z-index: 20; background: #fff; border-bottom: 1px solid #eee; }
@@ -1024,6 +1027,15 @@ const fmtDate = s => { try { return new Date(s).toLocaleDateString("ru-RU"); } c
 const stars = n => "★".repeat(n) + "☆".repeat(5 - n);
 
 const HEART_SVG = '<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+// Инлайн-иконки в едином line-стиле — заменяют цветные эмодзи (currentColor, размер 1em).
+const IC = {
+  pin: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+  clock: '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  gift: '<svg class="ic" viewBox="0 0 24 24"><path d="M20 12v8H4v-8"/><path d="M3 8h18v4H3z"/><path d="M12 8v12"/><path d="M12 8S10.5 3 8 3.5 6.5 7 8 7.5 12 8 12 8zm0 0s1.5-5 4-4.5S17.5 7 16 7.5 12 8 12 8z"/></svg>',
+  heart: '<svg class="ic" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+  telegram: '<svg class="ic-brand" viewBox="0 0 24 24"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>',
+  whatsapp: '<svg class="ic-brand" viewBox="0 0 24 24"><path d="M17.5 14.4c-.3-.1-1.8-.9-2.1-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-1 1.2-.2.2-.4.2-.7.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6.1-.1.3-.4.4-.5.1-.2.2-.3.3-.5.1-.2 0-.3 0-.5 0-.1-.7-1.7-.9-2.3-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.2.2 2.1 3.3 5.2 4.6.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4-.1-.1-.3-.2-.6-.3zM12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.3c1.4.8 3.1 1.2 4.8 1.2 5.5 0 10-4.5 10-10S17.5 2 12 2z"/></svg>',
+};
 
 const TABS = [
   { key: "all",     label: "Все",        params: "" },
@@ -1573,12 +1585,12 @@ function renderCart() {
   const body = document.getElementById("cartBody");
   const foot = document.getElementById("cartFoot");
   if (!state.cart.items.length) {
-    body.innerHTML = '<div class="empty-state">Корзина пуста.<br>Добавь что-нибудь из каталога ☝️</div>';
+    body.innerHTML = '<div class="empty-state">Корзина пуста.<br>Добавь что-нибудь из каталога</div>';
     foot.hidden = true;
     return;
   }
   const promo = !state.token
-    ? '<div class="co-promo">🎁 Зарегистрируйтесь при оформлении — и получите скидку 5% на заказ</div>'
+    ? '<div class="co-promo">' + IC.gift + ' Зарегистрируйтесь при оформлении — и получите скидку 5% на заказ</div>'
     : "";
   body.innerHTML = promo + state.cart.items.map(i => `
     <div class="cart-row">
@@ -1808,7 +1820,7 @@ async function loadSitePoints() {
     if (b.isValid()) siteMap.fitBounds(b, { padding: [25, 25] });
   }
   if (listEl) listEl.innerHTML = points.slice(0, 40)
-    .map(p => `<button type="button" class="pvz-item" data-pvz='${encodeURIComponent(JSON.stringify({ code: p.code, address: p.address, work_time: p.work_time, lat: p.lat, lon: p.lon }))}'>📍 ${p.address}</button>`)
+    .map(p => `<button type="button" class="pvz-item" data-pvz='${encodeURIComponent(JSON.stringify({ code: p.code, address: p.address, work_time: p.work_time, lat: p.lat, lon: p.lon }))}'>${IC.pin} ${p.address}</button>`)
     .join("");
 }
 
@@ -1821,8 +1833,8 @@ function selectSitePvz(p) {
   el.hidden = false;
   el.innerHTML = `
     <div class="pvz-d-name">Пункт выдачи</div>
-    <div class="pvz-d-addr">📍 ${p.address}</div>
-    <div class="pvz-d-work">🕒 ${p.work_time || "часы работы уточняются"}</div>
+    <div class="pvz-d-addr">${IC.pin} ${p.address}</div>
+    <div class="pvz-d-work">${IC.clock} ${p.work_time || "часы работы уточняются"}</div>
     <button type="button" class="pvz-confirm ${confirmed ? "done" : ""}" data-confirm-pvz ${confirmed ? "disabled" : ""}>
       ${confirmed ? "✓ Адрес подтверждён" : "Подтвердить адрес"}
     </button>`;
@@ -2021,7 +2033,7 @@ function renderProfile() {
     verify = u.email_verified
       ? `<div class="pf-verify"><span class="pf-badge ok">✓ E-mail подтверждён</span></div>`
       : `<div class="pf-verify">
-           <span class="pf-badge warn">⚠ E-mail не подтверждён</span>
+           <span class="pf-badge warn">E-mail не подтверждён</span>
            <p>Мы отправили письмо со ссылкой на <b>${esc(u.email)}</b>. Перейдите по ней,
               чтобы подтвердить адрес и получать статусы заказов на почту.</p>
            <button class="btn" id="pfResendBtn" onclick="resendVerification()">Выслать письмо повторно</button>
@@ -2179,10 +2191,10 @@ async function renderFavoritesPanel() {
   if (!state.token) {
     const items = guestFavGet();
     if (!items.length) {
-      body.innerHTML = '<div class="empty-state">Пока ничего не добавлено.<br>Жми сердечко на карточке товара ❤</div>';
+      body.innerHTML = '<div class="empty-state">Пока ничего не добавлено.<br>Жми сердечко ' + IC.heart + ' на карточке товара</div>';
       return;
     }
-    body.innerHTML = '<div class="co-promo">🎁 Зарегистрируйтесь при оформлении — и получите скидку 5% на заказ</div>' + items.map(p => `
+    body.innerHTML = '<div class="co-promo">' + IC.gift + ' Зарегистрируйтесь при оформлении — и получите скидку 5% на заказ</div>' + items.map(p => `
       <div class="cart-row" style="cursor:pointer" data-open-fav="${p.id}">
         <img src="${p.primary_image}" alt="">
         <div class="cart-info">
@@ -2198,7 +2210,7 @@ async function renderFavoritesPanel() {
   try {
     const items = await api("/favorites");
     if (!items.length) {
-      body.innerHTML = '<div class="empty-state">Пока ничего не добавлено.<br>Жми сердечко на карточке товара ❤</div>';
+      body.innerHTML = '<div class="empty-state">Пока ничего не добавлено.<br>Жми сердечко ' + IC.heart + ' на карточке товара</div>';
       return;
     }
     body.innerHTML = items.map(p => `
@@ -2498,7 +2510,7 @@ document.addEventListener("keydown", e => {
       addMsg(r.reply, "bot"); chatLog.push({ role: "bot", text: r.reply });
       setChips(r.suggestions);
     } catch (e) {
-      addMsg("Упс, не получилось ответить. Попробуйте ещё раз или напишите нам в мессенджере 👇", "bot");
+      addMsg("Упс, не получилось ответить. Попробуйте ещё раз или напишите нам в мессенджере.", "bot");
     }
   }
   async function doHandoff() {
@@ -2508,7 +2520,7 @@ document.addEventListener("keydown", e => {
       const r = await api("/support/handoff", { method: "POST", body: JSON.stringify({ messages: chatLog.slice(-20) }) });
       addMsg(r.detail, "bot");
     } catch (e) {
-      addMsg("Не удалось связаться с менеджером — напишите нам в Telegram или WhatsApp 👇", "bot");
+      addMsg("Не удалось связаться с менеджером — напишите нам в Telegram или WhatsApp.", "bot");
     }
     setChips(["Доставка", "Размеры", "Возврат"]);
   }
@@ -2517,8 +2529,8 @@ document.addEventListener("keydown", e => {
     try {
       const m = await api("/support/meta");
       let html = "";
-      if (m.telegram_url) html += `<a class="sw-ch" href="${m.telegram_url}" target="_blank" rel="noopener">✈️ Telegram</a>`;
-      if (m.whatsapp_url) html += `<a class="sw-ch" href="${m.whatsapp_url}" target="_blank" rel="noopener">🟢 WhatsApp</a>`;
+      if (m.telegram_url) html += `<a class="sw-ch" href="${m.telegram_url}" target="_blank" rel="noopener">${IC.telegram} Telegram</a>`;
+      if (m.whatsapp_url) html += `<a class="sw-ch" href="${m.whatsapp_url}" target="_blank" rel="noopener">${IC.whatsapp} WhatsApp</a>`;
       if (html) box.innerHTML = html;
       else box.style.display = "none";
     } catch (e) { box.style.display = "none"; }
@@ -2529,7 +2541,7 @@ document.addEventListener("keydown", e => {
     if (!started) {
       started = true;
       loadChannels();
-      addMsg("Привет! 👋 Я ассистент STRIDE. Помогу с заказом, размером, доставкой и оплатой.", "bot");
+      addMsg("Привет! Я ассистент STRIDE. Помогу с заказом, размером, доставкой и оплатой.", "bot");
       setChips(["Где мой заказ?", "Доставка", "Размеры", "Возврат", "Оплата"]);
     }
     setTimeout(() => input.focus(), 60);

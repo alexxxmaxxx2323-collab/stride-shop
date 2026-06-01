@@ -29,6 +29,7 @@
   *::-webkit-scrollbar { width: 10px; height: 10px; }
   *::-webkit-scrollbar-thumb { background: #2a2a30; border-radius: 99px; border: 2px solid var(--bg); }
   a { color: inherit; }
+  .ic { width: 1em; height: 1em; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.125em; flex-shrink: 0; }
   h1,h2,h3 { font-family: "Space Grotesk", Inter, sans-serif; margin: 0; }
 
   /* HEADER */
@@ -383,7 +384,7 @@ const SECTIONS = {
     const verify = s.email
       ? (s.email_verified
         ? '<span class="badge ok">✓ E-mail подтверждён</span>'
-        : `<span class="badge warn">⚠ E-mail не подтверждён</span> <button class="btn sm" id="resendBtn" style="margin-left:8px">Выслать письмо</button>`)
+        : `<span class="badge warn">E-mail не подтверждён</span> <button class="btn sm" id="resendBtn" style="margin-left:8px">Выслать письмо</button>`)
       : "";
     document.getElementById("content").innerHTML = `
       <div class="card">
@@ -543,7 +544,7 @@ const SECTIONS = {
             <div class="notif-main" style="flex:1">
               <div class="notif-title">${esc(n.title)}</div>
               ${n.body ? `<div class="notif-body">${esc(n.body)}</div>` : ""}
-              ${n.detail ? `<div class="notif-detail">🛍 ${esc(n.detail)}</div>` : ""}
+              ${n.detail ? `<div class="notif-detail"><svg class="ic" viewBox="0 0 24 24"><path d="M6 8h12l1 12H5L6 8z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg> ${esc(n.detail)}</div>` : ""}
               <div class="notif-actions">
                 ${n.order_id ? `<button class="lnk" onclick="setSection('orders')">К заказу</button>` : ""}
                 ${n.product_slug ? `<a class="lnk" href="/static/shop.html?product=${encodeURIComponent(n.product_slug)}">Открыть товар →</a>` : ""}
@@ -617,7 +618,7 @@ const SECTIONS = {
   async profile() {
     const u = state.user;
     const verify = u.email
-      ? (u.email_verified ? '<span class="badge ok">✓ подтверждён</span>' : '<span class="badge warn">⚠ не подтверждён</span>')
+      ? (u.email_verified ? '<span class="badge ok">✓ подтверждён</span>' : '<span class="badge warn">не подтверждён</span>')
       : "";
     document.getElementById("content").innerHTML = `
       <div class="card">
