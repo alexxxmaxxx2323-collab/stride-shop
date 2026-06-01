@@ -1,0 +1,4 @@
+# Shell-скрипты и серверные конфиги — всегда LF (иначе на Linux «bad interpreter»).
+*.sh         text eol=lf
+*.service    text eol=lf
+deploy/nginx.conf text eol=lf

@@ -17,4 +17,20 @@ services:
         sync: false                # задаётся вручную в дашборде (секрет бота)
       - key: ADMIN_TG_ID
         sync: false                # необязательно: tg_id для копий заказов админу
+      # Почта (SMTP). .env в гит не уходит — креды задаются здесь, в дашборде.
+      # Яндекс: SSL на 465 (SMTP_SSL=true, SMTP_TLS=false). Gmail/Brevo: 587 (наоборот).
+      - key: SMTP_HOST
+        value: smtp.yandex.ru
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_SSL
+        value: "true"
+      - key: SMTP_TLS
+        value: "false"
+      - key: SMTP_USER
+        sync: false                # адрес ящика-отправителя
+      - key: SMTP_PASSWORD
+        sync: false                # пароль приложения (секрет)
+      - key: SMTP_FROM
+        sync: false                # «Имя <ящик>», ящик = SMTP_USER
     # RENDER_EXTERNAL_URL Render подставляет сам — из него собираются webhook и URL мини-аппы.

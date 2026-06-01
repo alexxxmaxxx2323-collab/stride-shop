@@ -1,0 +1,29 @@
+# systemd-юнит: веб-приложение Stride Shop (FastAPI + Telegram-бот через webhook).
+# Бот живёт в том же процессе (см. app/main.py lifespan) — отдельный сервис не нужен.
+#
+# Установка:
+#   sudo cp /opt/stride-shop/deploy/stride.service /etc/systemd/system/stride.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now stride
+#   sudo systemctl status stride        # проверить
+#   journalctl -u stride -f             # логи
+#
+# Конфиг (PUBLIC_URL, SMTP_*, токены) приложение читает само из backend/.env
+# (pydantic-settings, env_file=".env" относительно WorkingDirectory) — поэтому
+# EnvironmentFile здесь не нужен.
+
+[Unit]
+Description=Stride Shop (FastAPI + Telegram bot webhook)
+After=network.target
+
+[Service]
+Type=simple
+User=stride
+Group=stride
+WorkingDirectory=/opt/stride-shop/backend
+ExecStart=/opt/stride-shop/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8077
+Restart=always
+RestartSec=3
+# uvicorn слушает только localhost — наружу его проксирует nginx (HTTPS).
+
+[Install]
+WantedBy=multi-user.target
