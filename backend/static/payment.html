@@ -236,13 +236,21 @@ async function payOrder(order) {
         method: "POST", body: JSON.stringify({ order_id: order.id }),
       });
       await loadYkScript();
-      document.getElementById("methodBody").innerHTML = `<div id="ykWidget"></div>`;
+      document.getElementById("methodBody").innerHTML =
+        `<div id="ykWidget"></div>
+         <a class="btn" style="display:block;margin-top:10px" href="/static/shop.html">← Вернуться в магазин</a>`;
       btn.style.display = "none";
       const checkout = new window.YooMoneyCheckoutWidget({
         confirmation_token,
         error_callback(e) { err.textContent = "Ошибка виджета оплаты"; console.error(e); },
       });
-      // По завершении оплаты виджет перенаправит на return_url (…&yk=1) — там сверим статус.
+      // Встроенный виджет сам НЕ редиректит на return_url — ловим завершение оплаты
+      // событием и сверяем статус на сервере (он источник истины). pollPayment покажет
+      // экран успеха с кнопками возврата в магазин.
+      checkout.on("complete", () => {
+        try { checkout.destroy(); } catch (_) {}
+        pollPayment(order);
+      });
       checkout.render("ykWidget");
     } else {
       // Оплата при получении (cod) или mock-заглушка для card/sbp.
