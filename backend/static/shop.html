@@ -724,37 +724,29 @@
   #userLabel { cursor: pointer; }
   #userLabel:hover { color: var(--text); border-color: var(--accent); }
 
-  /* ВИДЖЕТ ПОДДЕРЖКИ (AI-ассистент + каналы, внизу справа) */
-  #supportLauncher { position: fixed; right: 22px; bottom: 22px; z-index: 80; display: inline-flex; align-items: center; gap: 9px; padding: 12px 18px; border-radius: 99px; border: 1px solid var(--accent); background: rgba(20,20,24,.92); backdrop-filter: blur(10px); color: var(--text); font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: 0 8px 30px rgba(0,0,0,.45); transition: transform .15s, box-shadow .15s; }
-  #supportLauncher:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(204,255,0,.20); }
-  #supportLauncher .spark { color: var(--accent); font-size: 16px; line-height: 1; }
-  #supportLauncher.hidden { display: none; }
-  #supportPanel { position: fixed; right: 22px; bottom: 22px; z-index: 81; width: 360px; max-width: calc(100vw - 32px); height: 540px; max-height: calc(100vh - 44px); display: none; flex-direction: column; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 18px; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,.6); }
-  #supportPanel.show { display: flex; animation: sw-in .2s ease; }
-  @keyframes sw-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-  .sw-head { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
-  .sw-head .sw-title { font-weight: 700; font-family: "Space Grotesk", Inter, sans-serif; font-size: 15px; }
-  .sw-head .sw-status { font-size: 12px; color: var(--accent); margin-top: 2px; }
-  .sw-head .sw-x { margin-left: auto; background: none; border: 0; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; }
-  .sw-head .sw-x:hover { color: var(--text); }
-  .sw-channels { display: flex; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
-  .sw-ch { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; border-radius: 10px; border: 1px solid var(--line-strong); color: var(--text); text-decoration: none; font-size: 13px; transition: border-color .15s; }
-  .sw-ch:hover { border-color: var(--accent); color: var(--accent); }
-  .sw-body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
-  .sw-msg { max-width: 84%; padding: 10px 13px; border-radius: 14px; font-size: 14px; line-height: 1.42; white-space: pre-wrap; word-wrap: break-word; }
-  .sw-msg.bot { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
-  .sw-msg.user { align-self: flex-end; background: var(--accent); color: #000; border-bottom-right-radius: 4px; font-weight: 500; }
-  .sw-chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 14px 8px; }
-  .sw-chip { padding: 7px 12px; border-radius: 99px; border: 1px solid var(--line-strong); background: transparent; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; transition: .14s; }
-  .sw-chip:hover { border-color: var(--accent); color: var(--accent); }
-  .sw-input { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--line); }
-  .sw-input input { flex: 1; padding: 10px 13px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--text); font: inherit; }
-  .sw-input input:focus { outline: 0; border-color: var(--accent); }
-  .sw-input button { flex: none; width: 42px; border-radius: 10px; border: 0; background: var(--accent); color: #000; font-size: 17px; cursor: pointer; }
-  .sw-input button:hover { filter: brightness(1.08); }
+  /* ВИДЖЕТ ПОДДЕРЖКИ (мессенджеры, внизу справа) — минималистичный */
+  #supportWidget { position: fixed; right: 22px; bottom: 22px; z-index: 80; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+  #supportFab { width: 56px; height: 56px; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--accent); color: #000; display: grid; place-items: center; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,.45); transition: transform .18s ease, box-shadow .18s ease; }
+  #supportFab:hover { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(204,255,0,.28); }
+  #supportFab svg { width: 26px; height: 26px; fill: currentColor; transition: transform .25s ease; }
+  #supportFab.open svg { transform: rotate(90deg) scale(.92); }
+  .sw-menu { width: 270px; max-width: calc(100vw - 44px); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 16px; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,.6); animation: sw-in .2s ease; }
+  .sw-menu[hidden] { display: none; }
+  @keyframes sw-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .sw-menu-head { display: flex; align-items: center; padding: 14px 16px 4px; }
+  .sw-menu-head span { font-family: "Space Grotesk", Inter, sans-serif; font-weight: 700; font-size: 15px; }
+  .sw-menu-x { margin-left: auto; background: none; border: 0; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; }
+  .sw-menu-x:hover { color: var(--text); }
+  .sw-menu-hours { padding: 0 16px 12px; font-size: 12px; color: var(--muted); }
+  .sw-menu-links { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 14px; }
+  .sw-link { display: flex; align-items: center; gap: 11px; padding: 11px 13px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); text-decoration: none; font-size: 14px; font-weight: 500; transition: border-color .15s, transform .12s; }
+  .sw-link:hover { border-color: var(--accent); transform: translateX(2px); }
+  .sw-link svg { width: 22px; height: 22px; flex: none; }
+  .sw-link .sw-link-go { margin-left: auto; color: var(--muted); }
+  .sw-link:hover .sw-link-go { color: var(--accent); }
+  .sw-empty { padding: 4px 16px 14px; font-size: 13px; color: var(--muted); }
   @media (max-width: 480px) {
-    #supportPanel { right: 8px; left: 8px; width: auto; bottom: 8px; height: calc(100vh - 16px); }
-    #supportLauncher { right: 14px; bottom: 14px; }
+    #supportWidget { right: 14px; bottom: 14px; }
   }
 
   /* ============================================================
@@ -994,25 +986,19 @@
   </div>
 </footer>
 
-<!-- ВИДЖЕТ ПОДДЕРЖКИ -->
-<button id="supportLauncher" aria-label="Открыть поддержку">
-  <span class="spark">✦</span> Спросить STRIDE
-</button>
-<div id="supportPanel" role="dialog" aria-label="Чат поддержки">
-  <div class="sw-head">
-    <div>
-      <div class="sw-title">STRIDE Assistant</div>
-      <div class="sw-status">● Онлайн · ответим быстро</div>
+<!-- ВИДЖЕТ ПОДДЕРЖКИ (мессенджеры) -->
+<div id="supportWidget">
+  <div class="sw-menu" id="supportMenu" hidden>
+    <div class="sw-menu-head">
+      <span>Напишите нам</span>
+      <button class="sw-menu-x" id="swMenuClose" aria-label="Закрыть">×</button>
     </div>
-    <button class="sw-x" id="swClose" aria-label="Закрыть">×</button>
+    <div class="sw-menu-hours" id="swHours"></div>
+    <div class="sw-menu-links" id="swLinks"></div>
   </div>
-  <div class="sw-channels" id="swChannels"></div>
-  <div class="sw-body" id="swBody"></div>
-  <div class="sw-chips" id="swChips"></div>
-  <form class="sw-input" id="swForm">
-    <input id="swInput" type="text" placeholder="Напишите сообщение…" autocomplete="off" maxlength="1000">
-    <button type="submit" aria-label="Отправить">➤</button>
-  </form>
+  <button id="supportFab" aria-label="Связаться с нами" aria-expanded="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c-4.97 0-9 3.58-9 8 0 2.5 1.29 4.73 3.32 6.2-.13 1.1-.6 2.3-1.5 3.3-.2.22-.06.58.24.55 1.9-.2 3.5-.86 4.7-1.66.7.14 1.45.21 2.24.21 4.97 0 9-3.58 9-8s-4.03-8-9-8z"/></svg>
+  </button>
 </div>
 
 <script>
@@ -1246,13 +1232,14 @@ async function loadCatalog() {
   renderGrid(true);
 }
 
-// Hero: витринное фото берём один раз — нашу яркую неоновую модель.
+// Hero: витринное фото — наша яркая неоновая модель. Если она есть в каталоге,
+// берём её актуальное фото; если нет — оставляем статичную картинку из вёрстки
+// (НЕ подменяем случайным товаром, иначе в hero попадёт белый кроссовок).
 function updateHero() {
   if (heroImgSet || !state.products.length) return;
-  const featured = state.products.find(p => p.slug === "nike-air-max-95-neon")
-    || state.products.find(p => p.discount_pct) || state.products[0];
+  const featured = state.products.find(p => p.slug === "nike-air-max-95-neon");
   const img = document.getElementById("heroImg");
-  if (featured && img) { img.src = featured.primary_image; heroImgSet = true; }
+  if (featured && featured.primary_image && img) { img.src = featured.primary_image; heroImgSet = true; }
 }
 
 // Бренд-полоса: рендерим из /brands, дублируем для бесшовной прокрутки.
@@ -2525,87 +2512,44 @@ document.addEventListener("keydown", e => {
   }
 })();
 
-// ==================== ВИДЖЕТ ПОДДЕРЖКИ ====================
+// ==================== ВИДЖЕТ ПОДДЕРЖКИ (мессенджеры) ====================
 (function () {
-  const launcher = document.getElementById("supportLauncher");
-  const panel = document.getElementById("supportPanel");
-  const body = document.getElementById("swBody");
-  const chipsBox = document.getElementById("swChips");
-  const form = document.getElementById("swForm");
-  const input = document.getElementById("swInput");
-  const chatLog = [];   // история диалога — для передачи менеджеру
-  let started = false;
+  const widget = document.getElementById("supportWidget");
+  const fab = document.getElementById("supportFab");
+  const menu = document.getElementById("supportMenu");
+  const linksBox = document.getElementById("swLinks");
+  const hoursBox = document.getElementById("swHours");
+  let loaded = false, isOpen = false;
 
-  function addMsg(text, who) {
-    const d = document.createElement("div");
-    d.className = "sw-msg " + who;
-    d.textContent = text;
-    body.appendChild(d);
-    body.scrollTop = body.scrollHeight;
-  }
-  function setChips(list) {
-    chipsBox.innerHTML = "";
-    (list || []).forEach(c => {
-      const b = document.createElement("button");
-      b.className = "sw-chip"; b.type = "button"; b.textContent = c;
-      b.onclick = () => (c === "Позвать менеджера") ? doHandoff() : sendText(c);
-      chipsBox.appendChild(b);
-    });
-  }
-  async function sendText(text) {
-    addMsg(text, "user"); chatLog.push({ role: "user", text });
-    setChips([]);
-    try {
-      const r = await api("/support/ask", { method: "POST", body: JSON.stringify({ message: text }) });
-      addMsg(r.reply, "bot"); chatLog.push({ role: "bot", text: r.reply });
-      setChips(r.suggestions);
-    } catch (e) {
-      addMsg("Упс, не получилось ответить. Попробуйте ещё раз или напишите нам в мессенджере.", "bot");
-    }
-  }
-  async function doHandoff() {
-    addMsg("Передаю ваш диалог менеджеру…", "bot");
-    setChips([]);
-    try {
-      const r = await api("/support/handoff", { method: "POST", body: JSON.stringify({ messages: chatLog.slice(-20) }) });
-      addMsg(r.detail, "bot");
-    } catch (e) {
-      addMsg("Не удалось связаться с менеджером — напишите нам в Telegram или WhatsApp.", "bot");
-    }
-    setChips(["Доставка", "Размеры", "Возврат"]);
-  }
+  // Каналы тянем из /support/meta: сейчас Telegram, WhatsApp появится сам,
+  // как только в конфиге сервера будет задан номер (support_whatsapp).
   async function loadChannels() {
-    const box = document.getElementById("swChannels");
+    if (loaded) return;
+    loaded = true;
     try {
       const m = await api("/support/meta");
+      if (m.hours) hoursBox.textContent = m.hours;
+      const go = '<span class="sw-link-go">→</span>';
       let html = "";
-      if (m.telegram_url) html += `<a class="sw-ch" href="${m.telegram_url}" target="_blank" rel="noopener">${IC.telegram} Telegram</a>`;
-      if (m.whatsapp_url) html += `<a class="sw-ch" href="${m.whatsapp_url}" target="_blank" rel="noopener">${IC.whatsapp} WhatsApp</a>`;
-      if (html) box.innerHTML = html;
-      else box.style.display = "none";
-    } catch (e) { box.style.display = "none"; }
-  }
-  function openWidget() {
-    panel.classList.add("show");
-    launcher.classList.add("hidden");
-    if (!started) {
-      started = true;
-      loadChannels();
-      addMsg("Привет! Я ассистент STRIDE. Помогу с заказом, размером, доставкой и оплатой.", "bot");
-      setChips(["Где мой заказ?", "Доставка", "Размеры", "Возврат", "Оплата"]);
+      if (m.telegram_url) html += `<a class="sw-link" href="${m.telegram_url}" target="_blank" rel="noopener">${IC.telegram}<span>Telegram</span>${go}</a>`;
+      if (m.whatsapp_url) html += `<a class="sw-link" href="${m.whatsapp_url}" target="_blank" rel="noopener">${IC.whatsapp}<span>WhatsApp</span>${go}</a>`;
+      linksBox.innerHTML = html || '<div class="sw-empty">Контакты скоро появятся.</div>';
+    } catch (e) {
+      loaded = false;   // дать повторить попытку при следующем открытии
+      linksBox.innerHTML = '<div class="sw-empty">Не удалось загрузить контакты. Попробуйте позже.</div>';
     }
-    setTimeout(() => input.focus(), 60);
   }
-  function closeWidget() { panel.classList.remove("show"); launcher.classList.remove("hidden"); }
-  launcher.onclick = openWidget;
-  document.getElementById("swClose").onclick = closeWidget;
-  form.onsubmit = e => {
-    e.preventDefault();
-    const t = input.value.trim();
-    if (!t) return;
-    input.value = "";
-    sendText(t);
-  };
+  function setOpen(open) {
+    isOpen = open;
+    menu.hidden = !open;
+    fab.classList.toggle("open", open);
+    fab.setAttribute("aria-expanded", String(open));
+    if (open) loadChannels();
+  }
+  fab.onclick = () => setOpen(!isOpen);
+  document.getElementById("swMenuClose").onclick = () => setOpen(false);
+  document.addEventListener("click", e => { if (isOpen && !widget.contains(e.target)) setOpen(false); });
+  document.addEventListener("keydown", e => { if (isOpen && e.key === "Escape") setOpen(false); });
 })();
 </script>
 </body>
